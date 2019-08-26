@@ -1400,10 +1400,12 @@ typedef struct janus_videoroom_rtcp_receiver {
 } janus_videoroom_rtcp_receiver;
 static void janus_videoroom_rtp_forwarder_rtcp_receive(janus_videoroom_rtp_forwarder *forward);
 static gboolean janus_videoroom_rtp_forwarder_rtcp_prepare(GSource *source, gint *timeout) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_rtcp_prepare \n");
 	*timeout = -1;
 	return FALSE;
 }
 static gboolean janus_videoroom_rtp_forwarder_rtcp_dispatch(GSource *source, GSourceFunc callback, gpointer user_data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_rtcp_dispatch \n");
 	janus_videoroom_rtcp_receiver *r = (janus_videoroom_rtcp_receiver *)source;
 	/* Receive the packet */
 	if(r)
@@ -1411,6 +1413,7 @@ static gboolean janus_videoroom_rtp_forwarder_rtcp_dispatch(GSource *source, GSo
 	return G_SOURCE_CONTINUE;
 }
 static void janus_videoroom_rtp_forwarder_rtcp_finalize(GSource *source) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_rtcp_finalize \n");
 	janus_videoroom_rtcp_receiver *r = (janus_videoroom_rtcp_receiver *)source;
 	/* Remove the reference to the forwarder */
 	if(r && r->forward)
@@ -1529,11 +1532,14 @@ typedef struct janus_videoroom_rtp_relay_packet {
 
 /* Freeing stuff */
 static void janus_videoroom_subscriber_destroy(janus_videoroom_subscriber *s) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_subscriber_destroy \n");
+
 	if(s && g_atomic_int_compare_and_exchange(&s->destroyed, 0, 1))
 		janus_refcount_decrease(&s->ref);
 }
 
 static void janus_videoroom_subscriber_free(const janus_refcount *s_ref) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_subscriber_free \n");
 	janus_videoroom_subscriber *s = janus_refcount_containerof(s_ref, janus_videoroom_subscriber, ref);
 	/* This subscriber can be destroyed, free all the resources */
 	janus_sdp_destroy(s->sdp);
@@ -1541,26 +1547,31 @@ static void janus_videoroom_subscriber_free(const janus_refcount *s_ref) {
 }
 
 static void janus_videoroom_publisher_dereference(janus_videoroom_publisher *p) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_dereference \n");
 	/* This is used by g_pointer_clear and g_hash_table_new_full so that NULL is only possible if that was inserted into the hash table. */
 	janus_refcount_decrease(&p->ref);
 }
 
 static void janus_videoroom_publisher_dereference_by_subscriber(janus_videoroom_publisher *p) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_dereference_by_subscriber \n");
 	/* This is used by g_pointer_clear and g_hash_table_new_full so that NULL is only possible if that was inserted into the hash table. */
 	janus_refcount_decrease(&p->session->ref);
 	janus_refcount_decrease(&p->ref);
 }
 
 static void janus_videoroom_publisher_dereference_nodebug(janus_videoroom_publisher *p) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_dereference_nodebug \n");
 	janus_refcount_decrease_nodebug(&p->ref);
 }
 
 static void janus_videoroom_publisher_destroy(janus_videoroom_publisher *p) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_destroy \n");
 	if(p && g_atomic_int_compare_and_exchange(&p->destroyed, 0, 1))
 		janus_refcount_decrease(&p->ref);
 }
 
 static void janus_videoroom_publisher_free(const janus_refcount *p_ref) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_free \n");
 	janus_videoroom_publisher *p = janus_refcount_containerof(p_ref, janus_videoroom_publisher, ref);
 	g_free(p->display);
 	p->display = NULL;
@@ -1586,11 +1597,13 @@ static void janus_videoroom_publisher_free(const janus_refcount *p_ref) {
 }
 
 static void janus_videoroom_session_destroy(janus_videoroom_session *session) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_session_destroy \n");
 	if(session && g_atomic_int_compare_and_exchange(&session->destroyed, 0, 1))
 		janus_refcount_decrease(&session->ref);
 }
 
 static void janus_videoroom_session_free(const janus_refcount *session_ref) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_session_free \n");
 	janus_videoroom_session *session = janus_refcount_containerof(session_ref, janus_videoroom_session, ref);
 	/* Remove the reference to the core plugin session */
 	janus_refcount_decrease(&session->handle->ref);
@@ -1600,15 +1613,18 @@ static void janus_videoroom_session_free(const janus_refcount *session_ref) {
 }
 
 static void janus_videoroom_room_dereference(janus_videoroom *room) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_room_dereference \n");
 	janus_refcount_decrease(&room->ref);
 }
 
 static void janus_videoroom_room_destroy(janus_videoroom *room) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_room_destroy \n");
 	if(room && g_atomic_int_compare_and_exchange(&room->destroyed, 0, 1))
 		janus_refcount_decrease(&room->ref);
 }
 
 static void janus_videoroom_room_free(const janus_refcount *room_ref) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_room_free \n");
 	janus_videoroom *room = janus_refcount_containerof(room_ref, janus_videoroom, ref);
 	/* This room can be destroyed, free all the resources */
 	g_free(room->room_name);
@@ -1622,6 +1638,7 @@ static void janus_videoroom_room_free(const janus_refcount *room_ref) {
 }
 
 static void janus_videoroom_message_free(janus_videoroom_message *msg) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_message_free \n");
 	if(!msg || msg == &exit_message)
 		return;
 
@@ -1644,6 +1661,7 @@ static void janus_videoroom_message_free(janus_videoroom_message *msg) {
 }
 
 static void janus_videoroom_codecstr(janus_videoroom *videoroom, char *audio_codecs, char *video_codecs, int str_len, const char *split) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_codecstr \n");
 	if (audio_codecs) {
 		audio_codecs[0] = 0;
 		g_snprintf(audio_codecs, str_len, "%s", janus_audiocodec_name(videoroom->acodec[0]));
@@ -1671,6 +1689,7 @@ static void janus_videoroom_codecstr(janus_videoroom *videoroom, char *audio_cod
 }
 
 static void janus_videoroom_reqfir(janus_videoroom_publisher *publisher, const char *reason) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_reqfir \n");
 	/* Send a FIR */
 	char buf[20];
 	janus_rtcp_fir((char *)&buf, 20, &publisher->fir_seq);
@@ -1706,6 +1725,7 @@ static void janus_videoroom_reqfir(janus_videoroom_publisher *publisher, const c
 
 
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_publisher *p,
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_add_helper \n");
 		const gchar *host, int port, int rtcp_port, int pt, uint32_t ssrc,
 		gboolean simulcast, int srtp_suite, const char *srtp_crypto,
 		int substream, gboolean is_video, gboolean is_data) {
@@ -1863,6 +1883,7 @@ static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_publishe
 }
 
 static void janus_videoroom_rtp_forwarder_destroy(janus_videoroom_rtp_forwarder *forward) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_destroy \n");
 	if(forward && g_atomic_int_compare_and_exchange(&forward->destroyed, 0, 1)) {
 		if(forward->rtcp_fd > -1) {
 			g_source_destroy(forward->rtcp_recv);
@@ -1872,6 +1893,7 @@ static void janus_videoroom_rtp_forwarder_destroy(janus_videoroom_rtp_forwarder 
 	}
 }
 static void janus_videoroom_rtp_forwarder_free(const janus_refcount *f_ref) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_free \n");
 	janus_videoroom_rtp_forwarder *forward = janus_refcount_containerof(f_ref, janus_videoroom_rtp_forwarder, ref);
 	if(forward->rtcp_fd > -1)
 		close(forward->rtcp_fd);
@@ -1885,6 +1907,7 @@ static void janus_videoroom_rtp_forwarder_free(const janus_refcount *f_ref) {
 }
 
 static void janus_videoroom_srtp_context_free(gpointer data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_srtp_context_free \n");
 	if(data) {
 		janus_videoroom_srtp_context *srtp_ctx = (janus_videoroom_srtp_context *)data;
 		if(srtp_ctx) {
@@ -1900,6 +1923,7 @@ static void janus_videoroom_srtp_context_free(gpointer data) {
 
 /* Plugin implementation */
 int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_init \n");
 	if(g_atomic_int_get(&stopping)) {
 		/* Still stopping from before */
 		return -1;
@@ -2195,6 +2219,7 @@ int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
 }
 
 void janus_videoroom_destroy(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_destroy \n");
 	if(!g_atomic_int_get(&initialized))
 		return;
 	g_atomic_int_set(&stopping, 1);
@@ -2236,35 +2261,43 @@ void janus_videoroom_destroy(void) {
 }
 
 int janus_videoroom_get_api_compatibility(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_get_api_compatibility \n");
 	/* Important! This is what your plugin MUST always return: don't lie here or bad things will happen */
 	return JANUS_PLUGIN_API_VERSION;
 }
 
 int janus_videoroom_get_version(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_get_version \n");
 	return JANUS_VIDEOROOM_VERSION;
 }
 
 const char *janus_videoroom_get_version_string(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_get_version_string \n");
 	return JANUS_VIDEOROOM_VERSION_STRING;
 }
 
 const char *janus_videoroom_get_description(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_get_description \n");
 	return JANUS_VIDEOROOM_DESCRIPTION;
 }
 
 const char *janus_videoroom_get_name(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_get_name \n");
 	return JANUS_VIDEOROOM_NAME;
 }
 
 const char *janus_videoroom_get_author(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_get_author \n");
 	return JANUS_VIDEOROOM_AUTHOR;
 }
 
 const char *janus_videoroom_get_package(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_get_package \n");
 	return JANUS_VIDEOROOM_PACKAGE;
 }
 
 static janus_videoroom_session *janus_videoroom_lookup_session(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_lookup_session \n");
 	janus_videoroom_session *session = NULL;
 	if (g_hash_table_contains(sessions, handle)) {
 		session = (janus_videoroom_session *)handle->plugin_handle;
@@ -2273,6 +2306,7 @@ static janus_videoroom_session *janus_videoroom_lookup_session(janus_plugin_sess
 }
 
 void janus_videoroom_create_session(janus_plugin_session *handle, int *error) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_create_session \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized)) {
 		*error = -1;
 		return;
@@ -2295,6 +2329,7 @@ void janus_videoroom_create_session(janus_plugin_session *handle, int *error) {
 }
 
 static janus_videoroom_publisher *janus_videoroom_session_get_publisher(janus_videoroom_session *session) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_session_get_publisher \n");
 	janus_mutex_lock(&session->mutex);
 	janus_videoroom_publisher *publisher = (janus_videoroom_publisher *)session->participant;
 	if(publisher)
@@ -2304,6 +2339,7 @@ static janus_videoroom_publisher *janus_videoroom_session_get_publisher(janus_vi
 }
 
 static janus_videoroom_publisher *janus_videoroom_session_get_publisher_nodebug(janus_videoroom_session *session) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_session_get_publisher_nodebug \n");
 	janus_mutex_lock(&session->mutex);
 	janus_videoroom_publisher *publisher = (janus_videoroom_publisher *)session->participant;
 	if(publisher)
@@ -2313,6 +2349,7 @@ static janus_videoroom_publisher *janus_videoroom_session_get_publisher_nodebug(
 }
 
 static void janus_videoroom_notify_participants(janus_videoroom_publisher *participant, json_t *msg) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_notify_participants \n");
 	/* participant->room->mutex has to be locked. */
 	if(participant->room == NULL)
 		return;
@@ -2330,6 +2367,7 @@ static void janus_videoroom_notify_participants(janus_videoroom_publisher *parti
 }
 
 static void janus_videoroom_participant_joining(janus_videoroom_publisher *p) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_participant_joining \n");
 	/* we need to check if the room still exists, may have been destroyed already */
 	if(p->room == NULL)
 		return;
@@ -2350,6 +2388,7 @@ static void janus_videoroom_participant_joining(janus_videoroom_publisher *p) {
 }
 
 static void janus_videoroom_leave_or_unpublish(janus_videoroom_publisher *participant, gboolean is_leaving, gboolean kicked) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_leave_or_unpublish \n");
 	/* we need to check if the room still exists, may have been destroyed already */
 	if(participant->room == NULL)
 		return;
@@ -2386,6 +2425,7 @@ static void janus_videoroom_leave_or_unpublish(janus_videoroom_publisher *partic
 }
 
 void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_destroy_session \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized)) {
 		*error = -1;
 		return;
@@ -2439,6 +2479,7 @@ void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error) {
 }
 
 json_t *janus_videoroom_query_session(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_query_session \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized)) {
 		return NULL;
 	}
@@ -2543,6 +2584,7 @@ json_t *janus_videoroom_query_session(janus_plugin_session *handle) {
 }
 
 static int janus_videoroom_access_room(json_t *root, gboolean check_modify, gboolean check_join, janus_videoroom **videoroom, char *error_cause, int error_cause_size) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_access_room \n");
 	/* rooms_mutex has to be locked */
 	int error_code = 0;
 	json_t *room = json_object_get(root, "room");
@@ -2593,6 +2635,7 @@ static int janus_videoroom_access_room(json_t *root, gboolean check_modify, gboo
 
 /* Helper method to process synchronous requests */
 static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_session *session, json_t *message) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request \n");
 	json_t *request = json_object_get(message, "request");
 	const char *request_text = json_string_value(request);
 
@@ -3978,6 +4021,7 @@ prepare_response:
 }
 
 struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session *handle, char *transaction, json_t *message, json_t *jsep) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handle_message \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return janus_plugin_result_new(JANUS_PLUGIN_ERROR, g_atomic_int_get(&stopping) ? "Shutting down" : "Plugin not initialized", NULL);
 
@@ -4081,6 +4125,7 @@ plugin_response:
 }
 
 json_t *janus_videoroom_handle_admin_message(json_t *message) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handle_admin_message \n");
 	/* Some requests (e.g., 'create' and 'destroy') can be handled via Admin API */
 	int error_code = 0;
 	char error_cause[512];
@@ -4117,6 +4162,7 @@ admin_response:
 }
 
 void janus_videoroom_setup_media(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_setup_media \n");
 	JANUS_LOG(LOG_INFO, "[%s-%p] WebRTC media is now available\n", JANUS_VIDEOROOM_PACKAGE, handle);
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
@@ -4194,6 +4240,7 @@ void janus_videoroom_setup_media(janus_plugin_session *handle) {
 }
 
 void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp \n");
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized) || !gateway)
 		return;
 	janus_videoroom_session *session = (janus_videoroom_session *)handle->plugin_handle;
@@ -4474,6 +4521,7 @@ void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char 
 }
 
 void janus_videoroom_incoming_rtcp(janus_plugin_session *handle, int video, char *buf, int len) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtcp \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
 	janus_videoroom_session *session = (janus_videoroom_session *)handle->plugin_handle;
@@ -4526,6 +4574,7 @@ void janus_videoroom_incoming_rtcp(janus_plugin_session *handle, int video, char
 }
 
 void janus_videoroom_incoming_data(janus_plugin_session *handle, char *label, char *buf, int len) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_data \n");
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized) || !gateway)
 		return;
 	if(buf == NULL || len <= 0)
@@ -4572,6 +4621,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *label, ch
 }
 
 void janus_videoroom_slow_link(janus_plugin_session *handle, int uplink, int video) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_slow_link \n");
 	/* The core is informing us that our peer got too many NACKs, are we pushing media too hard? */
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized) || !gateway)
 		return;
@@ -4626,6 +4676,7 @@ void janus_videoroom_slow_link(janus_plugin_session *handle, int uplink, int vid
 }
 
 static void janus_videoroom_recorder_create(janus_videoroom_publisher *participant, gboolean audio, gboolean video, gboolean data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_recorder_create \n");
 	char filename[255];
 	gint64 now = janus_get_real_time();
 	if(audio && participant->arc == NULL) {
@@ -4698,6 +4749,7 @@ static void janus_videoroom_recorder_create(janus_videoroom_publisher *participa
 }
 
 static void janus_videoroom_recorder_close(janus_videoroom_publisher *participant) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_recorder_close \n");
 	if(participant->arc) {
 		janus_recorder *rc = participant->arc;
 		participant->arc = NULL;
@@ -4722,6 +4774,7 @@ static void janus_videoroom_recorder_close(janus_videoroom_publisher *participan
 }
 
 void janus_videoroom_hangup_media(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_hangup_media \n");
 	JANUS_LOG(LOG_INFO, "[%s-%p] No WebRTC media anymore; %p %p\n", JANUS_VIDEOROOM_PACKAGE, handle, handle->gateway_handle, handle->plugin_handle);
 	janus_mutex_lock(&sessions_mutex);
 	janus_videoroom_hangup_media_internal(handle);
@@ -4729,6 +4782,7 @@ void janus_videoroom_hangup_media(janus_plugin_session *handle) {
 }
 
 static void janus_videoroom_hangup_subscriber(janus_videoroom_subscriber * s) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_hangup_subscriber \n");
 	/* Already hung up */
 	if (!s->feed) {
 		return;
@@ -4757,6 +4811,7 @@ static void janus_videoroom_hangup_subscriber(janus_videoroom_subscriber * s) {
 }
 
 static void janus_videoroom_hangup_media_internal(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_hangup_media_internal \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
 	janus_videoroom_session *session = janus_videoroom_lookup_session(handle);
@@ -4845,6 +4900,7 @@ static void janus_videoroom_hangup_media_internal(janus_plugin_session *handle) 
 
 /* Thread to handle incoming messages */
 static void *janus_videoroom_handler(void *data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler \n");
 	JANUS_LOG(LOG_VERB, "Joining VideoRoom handler thread\n");
 	janus_videoroom_message *msg = NULL;
 	int error_code = 0;
@@ -6347,6 +6403,7 @@ error:
 
 /* Helper to quickly relay RTP packets from publishers to subscribers */
 static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_relay_rtp_packet \n");
 	janus_videoroom_rtp_relay_packet *packet = (janus_videoroom_rtp_relay_packet *)user_data;
 	if(!packet || !packet->data || packet->length < 1) {
 		JANUS_LOG(LOG_ERR, "Invalid packet...\n");
@@ -6571,6 +6628,7 @@ static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) 
 }
 
 static void janus_videoroom_relay_data_packet(gpointer data, gpointer user_data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_relay_data_packet \n");
 	char *text = (char *)user_data;
 	janus_videoroom_subscriber *subscriber = (janus_videoroom_subscriber *)data;
 	if(!subscriber || !subscriber->session || !subscriber->data || subscriber->paused) {
@@ -6592,6 +6650,7 @@ static void janus_videoroom_relay_data_packet(gpointer data, gpointer user_data)
 
 /* The following methods are only relevant if RTCP is used for RTP forwarders */
 static void janus_videoroom_rtp_forwarder_rtcp_receive(janus_videoroom_rtp_forwarder *forward) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_rtcp_receive \n");
 	char buffer[1500];
 	struct sockaddr_storage remote_addr;
 	socklen_t addrlen = sizeof(remote_addr);
@@ -6606,6 +6665,7 @@ static void janus_videoroom_rtp_forwarder_rtcp_receive(janus_videoroom_rtp_forwa
 }
 
 static void *janus_videoroom_rtp_forwarder_rtcp_thread(void *data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_rtcp_thread \n");
 	JANUS_LOG(LOG_VERB, "Joining RTCP thread for RTP forwarders...\n");
 	/* Run the main loop */
 	g_main_loop_run(rtcpfwd_loop);
