@@ -137,11 +137,10 @@ $(document).ready(function() {
 									// This controls allows us to override the global room bitrate cap
 									$('#bitrate').parent().parent().removeClass('hide').show();
 
-									
+									// videoop set 102 to h264
 									var register = { "request" : "rtp_forward", "publisher_id": myid, "room" : 5678, 
-										"video_port": 8050, "videopt": 100, "host" : "127.0.0.1", "secret" : "adminpwd" }
+										"video_port": 8050, "videopt" : 102, "audio_port" : 8051,"audiopt":111, "host" : "127.0.0.1", "secret" : "adminpwd" }
 									sfutest.send({"message": register});
-
 
 									$('#bitrate a').click(function() {
 										var id = $(this).attr("id");

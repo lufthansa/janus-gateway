@@ -1353,6 +1353,78 @@ typedef struct janus_videoroom_session {
 static GHashTable *sessions;
 static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 
+// willche: wbx struct
+#include <unsitd.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+#include <signal.h>
+typedef struct wbx_ffmpeg_progress {
+	gint64 sdp_sessid;
+	pid_t pid;
+} wbx_ffmpeg_progress;
+static GHashTable *ffmpegps;
+static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+static void wbx_kill_ffmpeg(gint64 session_id, guint64 room_id);
+static void wbx_start_ffmpeg(gint64 session_id, guint64 room_id, int video_port);
+static int wbx_check_ffmpeg(guint64 room_id);
+
+// check if a room has ffmpeg progress
+static int wbx_check_ffmpeg(guint64 room_id)
+{
+	wbx_ffmpeg_progress * ffps = NULL;
+	ffps = g_hash_table_lookup(ffmpegps, &room_id);	
+	
+	JANUS_LOG(LOG_INFO, "willche in wbx_check_ffmpeg roomid = %ld, findret = %d \n", room_id, ffps);
+
+	return ffps == NULL ? 0:1;
+}
+
+// stop a ffmpeg progress
+static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id)
+{
+	pid_t ffpid = 0;
+
+	wbx_ffmpeg_progress * ffps = NULL;
+	ffps = g_hash_table_lookup(ffps, &room_id);
+	
+	kill(ffpid, SIGKILL);
+	waitpid(ffpid, NULL, 0);
+
+	janus_mutex_lock(&ffmpegps_mutex);
+	g_hash_table_remove(ffmpegps, &room_id);
+	janus_mutex_unlock(&ffmpegps_mutex);
+}
+
+// start a ffmpeg progresss
+static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
+{
+	// TODO create sdpfile.
+
+	pid_t child_pid = 0;
+	child_pid = fork();
+
+	if(child_pid == 0)
+	{
+		execl("/usr/local/bin/ffmpeg", "wbxffmpeg", NULL);		
+		exit(0);
+	}
+	
+	wbx_ffmpeg_progress * ffps = g_malloc0(sizeof(wbx_ffmpeg_progress));
+	ffps->pid = child_pid;
+	ffps->sdp_sessid = session_id;
+	
+	janus_mutex_lock(&ffmpegps_mutex);
+	g_hash_table_insert(ffmpegps, ffps);
+	janus_mutex_unlock(&ffmpegps_mutex);
+}
+
+// glib hash table for ffmpeg progress value free func
+static void wbx_ffmpeg_free(wbx_ffmpeg_progress *ffmpegps) {
+	JANUS_LOG(LOG_INFO, "willche in wbx_ffmpeg_free \n");
+	g_free(ffmpegps);
+}
+
+
 /* A host whose ports gets streamed RTP packets of the corresponding type */
 typedef struct janus_videoroom_srtp_context janus_videoroom_srtp_context;
 typedef struct janus_videoroom_rtp_forwarder {
@@ -1956,6 +2028,10 @@ int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
 
 	/* This is the callback we'll need to invoke to contact the Janus core */
 	gateway = callback;
+
+	// willche init
+	ffmpegps = g_hash_table_new_full(g_int64_hash, g_int64_equal, NULL, (GDestroyNotify)wbx_ffmpeg_free);
+	janus_mutex_init(&ffmpegps_mutex);
 
 	/* Parse configuration to populate the rooms list */
 	if(config != NULL) {
@@ -3318,7 +3394,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "list", list);
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "rtp_forward")) {
-		// TODO: one room can only have one publisher
+		// TODO: willche one room can only have one publisher
 		
 		JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
 			error_code, error_cause, TRUE,
