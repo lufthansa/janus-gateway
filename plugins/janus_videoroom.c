@@ -1382,22 +1382,24 @@ static int wbx_check_ffmpeg(guint64 room_id)
 // stop a ffmpeg progress
 static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id)
 {
-	pid_t ffpid = 0;
-
+	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  \n");
 	wbx_ffmpeg_progress * ffps = NULL;
 	ffps = g_hash_table_lookup(ffps, &room_id);
 	
-	kill(ffpid, SIGKILL);
-	waitpid(ffpid, NULL, 0);
+	kill(ffps->pid, SIGKILL);
+	waitpid(ffps->pid, NULL, 0);
 
 	janus_mutex_lock(&ffmpegps_mutex);
 	g_hash_table_remove(ffmpegps, &room_id);
 	janus_mutex_unlock(&ffmpegps_mutex);
+	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg  \n");
 }
 
 // start a ffmpeg progresss
 static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
 {
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg  \n");
+
 	// TODO create sdpfile.
 
 	pid_t child_pid = 0;
@@ -1405,7 +1407,7 @@ static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
 
 	if(child_pid == 0)
 	{
-		execl("/usr/local/bin/ffmpeg", "wbxffmpeg", NULL);		
+		execl("/usr/local/bin/ffmpeg", "wbxffmpeg", NULL);
 		exit(0);
 	}
 	
@@ -1416,12 +1418,15 @@ static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
 	janus_mutex_lock(&ffmpegps_mutex);
 	g_hash_table_insert(ffmpegps, ffps);
 	janus_mutex_unlock(&ffmpegps_mutex);
+	
+	JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg  \n");
 }
 
 // glib hash table for ffmpeg progress value free func
 static void wbx_ffmpeg_free(wbx_ffmpeg_progress *ffmpegps) {
 	JANUS_LOG(LOG_INFO, "willche in wbx_ffmpeg_free \n");
 	g_free(ffmpegps);
+	JANUS_LOG(LOG_INFO, "willche out wbx_ffmpeg_free \n");
 }
 
 
