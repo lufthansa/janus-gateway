@@ -3318,6 +3318,8 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "list", list);
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "rtp_forward")) {
+		// TODO: one room can only have one publisher
+		
 		JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
 			error_code, error_cause, TRUE,
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
@@ -3574,6 +3576,10 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "rtp_stream", rtp_stream);
 		json_object_set_new(response, "room", json_integer(room_id));
 		json_object_set_new(response, "videoroom", json_string("rtp_forward"));
+
+		// if no error, start ffmpeg rtp->rtmp shell
+		// TODO: add shell cmd, one room can have only one rtp publisher  
+		
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "stop_rtp_forward")) {
 		JANUS_VALIDATE_JSON_OBJECT(root, stop_rtp_forward_parameters,

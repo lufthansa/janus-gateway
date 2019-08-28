@@ -52,7 +52,7 @@ var janus = null;
 var sfutest = null;
 var opaqueId = "videoroomtest-"+Janus.randomString(12);
 
-var myroom = 1234;	// Demo room
+var myroom = 5678;	// Demo room
 var myusername = null;
 var myid = null;
 var mystream = null;
@@ -136,6 +136,13 @@ $(document).ready(function() {
 									$('#publish').remove();
 									// This controls allows us to override the global room bitrate cap
 									$('#bitrate').parent().parent().removeClass('hide').show();
+
+									
+									var register = { "request" : "rtp_forward", "publisher_id": myid, "room" : 5678, 
+										"video_port": 8050, "videopt": 100, "host" : "127.0.0.1", "secret" : "adminpwd" }
+									sfutest.send({"message": register});
+
+
 									$('#bitrate a').click(function() {
 										var id = $(this).attr("id");
 										var bitrate = parseInt(id)*1000;
