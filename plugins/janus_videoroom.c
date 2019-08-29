@@ -1363,13 +1363,14 @@ static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 
 typedef struct wbx_ffmpeg_progress {
 	gint64 sdp_sessid;
+	gint64 user_id;
 	pid_t pid;
 } wbx_ffmpeg_progress;
 
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
-static void wbx_kill_ffmpeg(gint64 session_id, guint64 room_id);
-static void wbx_start_ffmpeg(gint64 session_id, guint64 room_id, int video_port);
+static void wbx_kill_ffmpeg(gint64 session_id, guint64 room_id, guint64 user_id);
+static void wbx_start_ffmpeg(gint64 session_id, guint64 room_id, guint64 user_id, int video_port);
 static int wbx_check_ffmpeg(guint64 room_id);
 static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
@@ -1399,11 +1400,16 @@ static int wbx_check_ffmpeg(guint64 room_id)
 }
 
 // stop a ffmpeg progress
-static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id)
+static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id, guint64 user_id)
 {
 	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  \n");
 	wbx_ffmpeg_progress * ffps = NULL;
 	ffps = g_hash_table_lookup(ffps, &room_id);
+
+	if(ffps->user_id != user_id)
+	{
+		return;
+	}
 	
 	kill(ffps->pid, SIGKILL);
 	waitpid(ffps->pid, NULL, 0);
@@ -1415,7 +1421,7 @@ static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id)
 }
 
 // start a ffmpeg progresss
-static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
+static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, guint64 user_id, int video_port)
 {
 	// TODO lock.
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg sid = %ld, roomid = %ld, videoport = %d \n", session_id, room_id, video_port);
@@ -1441,6 +1447,7 @@ static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
 	wbx_ffmpeg_progress * ffps = g_malloc0(sizeof(wbx_ffmpeg_progress));
 	ffps->pid = child_pid;
 	ffps->sdp_sessid = session_id;
+	ffps->user_id = user_id;
 	
 	janus_mutex_lock(&ffmpegps_mutex);
 	g_hash_table_insert(ffmpegps, ffps);
@@ -3690,7 +3697,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "videoroom", json_string("rtp_forward"));
 
 		// willche if no error, start ffmpeg rtp->rtmp shell
-		wbx_start_ffmpeg(session->sdp_sessid, room_id, video_port[0]);
+		wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0]);
 		
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "stop_rtp_forward")) {
