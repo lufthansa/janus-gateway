@@ -64,11 +64,11 @@ room-1234: {
 # plain VP9 (which is good if you want to test how this indeed affect
 # what receivers will get, whether they're encoding SVC or not).
 room-5678: {
-	description = "VP9-SVC Demo Room"
-	secret = "adminpwd"
-	publishers = 6
-	bitrate = 512000
-	fir_freq = 10
-	videocodec = "vp9"
-	video_svc = true
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 6
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   video_svc = true
 }

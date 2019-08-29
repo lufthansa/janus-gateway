@@ -1369,8 +1369,8 @@ typedef struct wbx_ffmpeg_progress {
 
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
-static void wbx_kill_ffmpeg(gint64 session_id, guint64 room_id, guint64 user_id);
-static void wbx_start_ffmpeg(gint64 session_id, guint64 room_id, guint64 user_id, int video_port);
+static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id);
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port);
 static int wbx_check_ffmpeg(guint64 room_id);
 static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
@@ -1400,7 +1400,7 @@ static int wbx_check_ffmpeg(guint64 room_id)
 }
 
 // stop a ffmpeg progress
-static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id, guint64 user_id)
+static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id)
 {
 	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  \n");
 	wbx_ffmpeg_progress * ffps = NULL;
@@ -1421,7 +1421,7 @@ static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id, guint64 user_id)
 }
 
 // start a ffmpeg progresss
-static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, guint64 user_id, int video_port)
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port)
 {
 	// TODO lock.
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg sid = %ld, roomid = %ld, videoport = %d \n", session_id, room_id, video_port);
@@ -1450,7 +1450,11 @@ static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, guint64 user_id,
 	ffps->user_id = user_id;
 	
 	janus_mutex_lock(&ffmpegps_mutex);
-	g_hash_table_insert(ffmpegps, ffps);
+	
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 \n");
+//	g_hash_table_insert(ffmpegps, room_id, ffps);
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
+
 	janus_mutex_unlock(&ffmpegps_mutex);
 
 	wbx_print_ffmpegps();
@@ -1840,10 +1844,12 @@ static void janus_videoroom_reqfir(janus_videoroom_publisher *publisher, const c
 
 
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_publisher *p,
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_add_helper \n");
 		const gchar *host, int port, int rtcp_port, int pt, uint32_t ssrc,
 		gboolean simulcast, int srtp_suite, const char *srtp_crypto,
 		int substream, gboolean is_video, gboolean is_data) {
+	
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_rtp_forwarder_add_helper \n");
+	
 	if(!p || !host) {
 		return 0;
 	}
@@ -2073,7 +2079,7 @@ int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
 	gateway = callback;
 
 	// willche init
-	ffmpegps = g_hash_table_new_full(g_int64_hash, g_int64_equal, NULL, (GDestroyNotify)wbx_ffmpeg_free);
+	ffmpegps = g_hash_table_new_full(g_int64_hash, g_int64_equal, NULL, (GDestroyNotify)wbx_ffmpeg_free_callback);
 	janus_mutex_init(&ffmpegps_mutex);
 
 	/* Parse configuration to populate the rooms list */
