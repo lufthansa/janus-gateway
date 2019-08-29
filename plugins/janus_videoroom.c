@@ -1438,13 +1438,16 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	if(child_pid == 0)
 	{
 		// start ffmpeg
-		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process  \n");
-		char ffmpegcmd[MAX_PATH_LEN] = " rtmp://wxs.cisco.com:1935/hls/%d";
-		snprintf(ffmpegcmd, MAX_PATH_LEN, ffmpegcmd, room_id);
-		execl("/usr/local/bin/ffmpeg", " ffmpeg"," -analyzeduration",
-			" 300M", " -probesize"," 300M"," -protocol_whitelist"," file,udp,rtp","  -i"" /usr/local/sdp/tmp.sdp",
-			" -c:v","  h264"," -c:a"," aac"," -ar"," 16k"," -ac"," 1"," -preset"," ultrafast"," -tune"," zerolatency",
-			" -vcodec"," copy"," -f"," flv"," -an",ffmpegcmd, NULL);
+		char ffmpegcmd[MAX_PATH_LEN] = {0};
+		snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%d", room_id);
+
+		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
+#if 0
+		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-loglevel", "debug", "-analyzeduration",
+			"300M", "-probesize","300M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
+			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
+			"-vcodec","copy","-f","flv","-an",ffmpegcmd, NULL);
+#endif
 		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
 	}
@@ -4381,7 +4384,7 @@ void janus_videoroom_setup_media(janus_plugin_session *handle) {
 void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
 
 	// willche comment
-	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp \n");
+	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp len %d \n", len);
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized) || !gateway)
 		return;
 	janus_videoroom_session *session = (janus_videoroom_session *)handle->plugin_handle;
