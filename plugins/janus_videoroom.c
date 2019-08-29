@@ -1438,9 +1438,12 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	if(child_pid == 0)
 	{
 		// start ffmpeg
-		char ffmpegcmd[MAX_PATH_LEN] = "/usr/local/bin/ffmpeg -loglevel debug -analyzeduration 300M -probesize 300M -protocol_whitelist file,udp,rtp  -i /usr/local/sdp/tmp.sdp -c:v  h264 -c:a aac -ar 16k -ac 1 -preset ultrafast -tune zerolatency -vcodec copy -f flv -an rtmp://wxs.cisco.com:1935/hls/%d";
+		char ffmpegcmd[MAX_PATH_LEN] = " rtmp://wxs.cisco.com:1935/hls/%d";
 		snprintf(ffmpegcmd, MAX_PATH_LEN, ffmpegcmd, room_id);
-		execl(ffmpegcmd, "wbxffmpeg", NULL);
+		execl("/usr/local/bin/ffmpeg", " ffmpeg", " -loglevel"," debug"," -analyzeduration",
+			" 300M", " -probesize"," 300M"," -protocol_whitelist"," file,udp,rtp","  -i"" /usr/local/sdp/tmp.sdp",
+			" -c:v","  h264"," -c:a"," aac"," -ar"," 16k"," -ac"," 1"," -preset"," ultrafast"," -tune"," zerolatency",
+			" -vcodec"," copy"," -f"," flv"," -an",ffmpegcmd, NULL);
 		exit(0);
 	}
 	
@@ -1679,7 +1682,8 @@ static void janus_videoroom_publisher_dereference_by_subscriber(janus_videoroom_
 }
 
 static void janus_videoroom_publisher_dereference_nodebug(janus_videoroom_publisher *p) {
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_dereference_nodebug \n");
+	// willche comment
+	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_dereference_nodebug \n");
 	janus_refcount_decrease_nodebug(&p->ref);
 }
 
@@ -2464,7 +2468,8 @@ static janus_videoroom_publisher *janus_videoroom_session_get_publisher(janus_vi
 }
 
 static janus_videoroom_publisher *janus_videoroom_session_get_publisher_nodebug(janus_videoroom_session *session) {
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_session_get_publisher_nodebug \n");
+	// willche comment
+	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_session_get_publisher_nodebug \n");
 	janus_mutex_lock(&session->mutex);
 	janus_videoroom_publisher *publisher = (janus_videoroom_publisher *)session->participant;
 	if(publisher)
@@ -4371,7 +4376,9 @@ void janus_videoroom_setup_media(janus_plugin_session *handle) {
 }
 
 void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp \n");
+
+	// willche comment
+	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp \n");
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized) || !gateway)
 		return;
 	janus_videoroom_session *session = (janus_videoroom_session *)handle->plugin_handle;
