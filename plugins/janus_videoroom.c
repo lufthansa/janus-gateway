@@ -1441,7 +1441,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process  \n");
 		char ffmpegcmd[MAX_PATH_LEN] = " rtmp://wxs.cisco.com:1935/hls/%d";
 		snprintf(ffmpegcmd, MAX_PATH_LEN, ffmpegcmd, room_id);
-		execl("/usr/local/bin/ffmpeg", " ffmpeg", " -loglevel"," debug"," -analyzeduration",
+		execl("/usr/local/bin/ffmpeg", " ffmpeg"," -analyzeduration",
 			" 300M", " -probesize"," 300M"," -protocol_whitelist"," file,udp,rtp","  -i"" /usr/local/sdp/tmp.sdp",
 			" -c:v","  h264"," -c:a"," aac"," -ar"," 16k"," -ac"," 1"," -preset"," ultrafast"," -tune"," zerolatency",
 			" -vcodec"," copy"," -f"," flv"," -an",ffmpegcmd, NULL);
@@ -1814,7 +1814,8 @@ static void janus_videoroom_codecstr(janus_videoroom *videoroom, char *audio_cod
 }
 
 static void janus_videoroom_reqfir(janus_videoroom_publisher *publisher, const char *reason) {
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_reqfir \n");
+	// willche comment
+	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_reqfir \n");
 	/* Send a FIR */
 	char buf[20];
 	janus_rtcp_fir((char *)&buf, 20, &publisher->fir_seq);
@@ -4661,7 +4662,8 @@ void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char 
 }
 
 void janus_videoroom_incoming_rtcp(janus_plugin_session *handle, int video, char *buf, int len) {
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtcp \n");
+	// willche comment
+	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtcp \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
 	janus_videoroom_session *session = (janus_videoroom_session *)handle->plugin_handle;
