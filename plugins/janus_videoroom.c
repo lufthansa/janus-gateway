@@ -1358,15 +1358,34 @@ static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <signal.h>
+
+#define MAX_PATH_LEN 512 
+
 typedef struct wbx_ffmpeg_progress {
 	gint64 sdp_sessid;
 	pid_t pid;
 } wbx_ffmpeg_progress;
+
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
 static void wbx_kill_ffmpeg(gint64 session_id, guint64 room_id);
 static void wbx_start_ffmpeg(gint64 session_id, guint64 room_id, int video_port);
 static int wbx_check_ffmpeg(guint64 room_id);
+static void wbx_print_ffmpegps();
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
+static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
+	
+static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data)
+{
+	wbx_ffmpeg_progress * ffps = (wbx_ffmpeg_progress*) value;
+ 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %d sessionid = %ld\n", key, ffps->pid, ffps->sdp_sessid);
+}
+
+// print hash table for debug
+static void wbx_print_ffmpegps()
+{
+	g_hash_table_foreach(ffmpegps, wbx_print_ffmpegps_callback, NULL);
+}
 
 // check if a room has ffmpeg progress
 static int wbx_check_ffmpeg(guint64 room_id)
@@ -1398,16 +1417,24 @@ static void wbx_kill_ffmpeg(gint64 session_id, gint64 room_id)
 // start a ffmpeg progresss
 static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
 {
-	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg  \n");
+	// TODO lock.
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg sid = %ld, roomid = %ld, videoport = %d \n", session_id, room_id, video_port);
 
-	// TODO create sdpfile.
+	// prepare sdp file
+	system("cp /usr/local/sdp.file /usr/local/sdp/tmp.sdp");
+	char sedcmd[MAX_PATH_LEN] = {0};
+	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/8085/%d/g' /usr/local/sdp/tmp.sdp", video_port);
+	system(sedcmd);
 
 	pid_t child_pid = 0;
 	child_pid = fork();
 
 	if(child_pid == 0)
 	{
-		execl("/usr/local/bin/ffmpeg", "wbxffmpeg", NULL);
+		// start ffmpeg
+		char ffmpegcmd[MAX_PATH_LEN] = "/usr/local/bin/ffmpeg -loglevel debug -analyzeduration 300M -probesize 300M -protocol_whitelist file,udp,rtp  -i /usr/local/sdp/tmp.sdp -c:v  h264 -c:a aac -ar 16k -ac 1 -preset ultrafast -tune zerolatency -vcodec copy -f flv -an rtmp://wxs.cisco.com:1935/hls/%d";
+		snprintf(ffmpegcmd, MAX_PATH_LEN, ffmpegcmd, room_id);
+		execl(ffmpegcmd, "wbxffmpeg", NULL);
 		exit(0);
 	}
 	
@@ -1418,16 +1445,20 @@ static void wbx_start_ffmpeg(gint64 session_id, gint64 room_id, int video_port)
 	janus_mutex_lock(&ffmpegps_mutex);
 	g_hash_table_insert(ffmpegps, ffps);
 	janus_mutex_unlock(&ffmpegps_mutex);
+
+	wbx_print_ffmpegps();
 	
 	JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg  \n");
 }
 
 // glib hash table for ffmpeg progress value free func
-static void wbx_ffmpeg_free(wbx_ffmpeg_progress *ffmpegps) {
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps) {
 	JANUS_LOG(LOG_INFO, "willche in wbx_ffmpeg_free \n");
 	g_free(ffmpegps);
 	JANUS_LOG(LOG_INFO, "willche out wbx_ffmpeg_free \n");
 }
+// end wbx 
+
 
 
 /* A host whose ports gets streamed RTP packets of the corresponding type */
@@ -3658,8 +3689,8 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "room", json_integer(room_id));
 		json_object_set_new(response, "videoroom", json_string("rtp_forward"));
 
-		// if no error, start ffmpeg rtp->rtmp shell
-		// TODO: add shell cmd, one room can have only one rtp publisher  
+		// willche if no error, start ffmpeg rtp->rtmp shell
+		wbx_start_ffmpeg(session->sdp_sessid, room_id, video_port[0]);
 		
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "stop_rtp_forward")) {
