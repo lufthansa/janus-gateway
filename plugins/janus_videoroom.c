@@ -1424,7 +1424,7 @@ static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id
 static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port)
 {
 	// TODO lock.
-	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg sid = %ld, roomid = %ld, videoport = %d \n", session_id, room_id, video_port);
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %ld, videoport = %d \n", session_id, room_id, video_port);
 
 	// prepare sdp file
 	system("cp /usr/local/sdp.file /usr/local/sdp/tmp.sdp");
@@ -1438,12 +1438,14 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	if(child_pid == 0)
 	{
 		// start ffmpeg
+		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process  \n");
 		char ffmpegcmd[MAX_PATH_LEN] = " rtmp://wxs.cisco.com:1935/hls/%d";
 		snprintf(ffmpegcmd, MAX_PATH_LEN, ffmpegcmd, room_id);
 		execl("/usr/local/bin/ffmpeg", " ffmpeg", " -loglevel"," debug"," -analyzeduration",
 			" 300M", " -probesize"," 300M"," -protocol_whitelist"," file,udp,rtp","  -i"" /usr/local/sdp/tmp.sdp",
 			" -c:v","  h264"," -c:a"," aac"," -ar"," 16k"," -ac"," 1"," -preset"," ultrafast"," -tune"," zerolatency",
 			" -vcodec"," copy"," -f"," flv"," -an",ffmpegcmd, NULL);
+		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
 	}
 	
@@ -1454,7 +1456,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	
 	janus_mutex_lock(&ffmpegps_mutex);
 	
-	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 \n");
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 child pid = %d \n", child_pid);
 //	g_hash_table_insert(ffmpegps, room_id, ffps);
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
 
