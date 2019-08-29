@@ -1354,7 +1354,7 @@ static GHashTable *sessions;
 static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 
 // willche: wbx struct
-#include <unsitd.h>
+#include <unistd.h>
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <signal.h>
