@@ -1402,7 +1402,7 @@ static int wbx_check_ffmpeg(guint64 room_id)
 // stop a ffmpeg progress
 static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id)
 {
-	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  \n");
+	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  sid = %lu rid = %lu uid = %lu \n", session_id, room_id, user_id);
 	wbx_ffmpeg_progress * ffps = NULL;
 	ffps = g_hash_table_lookup(ffps, &room_id);
 
@@ -1415,7 +1415,11 @@ static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id
 	waitpid(ffps->pid, NULL, 0);
 
 	janus_mutex_lock(&ffmpegps_mutex);
+	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg before remove \n");
+	wbx_print_ffmpegps();
 	g_hash_table_remove(ffmpegps, &room_id);
+	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg after remove \n");
+	wbx_print_ffmpegps();
 	janus_mutex_unlock(&ffmpegps_mutex);
 	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg  \n");
 }
@@ -1461,9 +1465,8 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 child pid = %d \n", child_pid);
 	g_hash_table_insert(ffmpegps, janus_uint64_dup(room_id), ffps);
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
-	janus_mutex_unlock(&ffmpegps_mutex);
-
 	wbx_print_ffmpegps();
+	janus_mutex_unlock(&ffmpegps_mutex);
 	
 	JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg  \n");
 }
@@ -1699,6 +1702,10 @@ static void janus_videoroom_publisher_destroy(janus_videoroom_publisher *p) {
 static void janus_videoroom_publisher_free(const janus_refcount *p_ref) {
 	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_free \n");
 	janus_videoroom_publisher *p = janus_refcount_containerof(p_ref, janus_videoroom_publisher, ref);
+
+	// stop ffmpeg
+	wbx_kill_ffmpeg(p->session->sdp_sessid, p->room_id, p->user_id);
+	
 	g_free(p->display);
 	p->display = NULL;
 	g_free(p->sdp);
