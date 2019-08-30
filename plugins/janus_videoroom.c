@@ -1461,12 +1461,10 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	ffps->sdp_sessid = session_id;
 	ffps->user_id = user_id;
 	
-	janus_mutex_lock(&ffmpegps_mutex);
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 child pid = %d \n", child_pid);
 	g_hash_table_insert(ffmpegps, janus_uint64_dup(room_id), ffps);
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
 	wbx_print_ffmpegps();
-	janus_mutex_unlock(&ffmpegps_mutex);
 	
 	JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg  \n");
 }
@@ -3465,7 +3463,6 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "list", list);
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "rtp_forward")) {
-		// TODO: willche one room can only have one publisher, add locker & check
 		
 		JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
 			error_code, error_cause, TRUE,
@@ -3725,7 +3722,19 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "videoroom", json_string("rtp_forward"));
 
 		// willche if no error, start ffmpeg rtp->rtmp shell
-		wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0]);
+		janus_mutex_lock(ffmpegps_mutex);
+		if(!wbx_check_ffmpeg(room_id))
+		{
+			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0]);
+		}
+		else
+		{
+			JANUS_LOG(LOG_ERR, "room %ul has started a ffmpeg progress \n", room_id);
+			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
+			g_snprintf(error_cause, 512, "room %ul has started a ffmpeg progress", room_id);
+			goto prepare_response;
+		}
+		janus_mutex_unlock(ffmpegps_mutex);
 		
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "stop_rtp_forward")) {
