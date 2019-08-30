@@ -3729,9 +3729,9 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		}
 		else
 		{
-			JANUS_LOG(LOG_ERR, "room %ul has started a ffmpeg progress \n", room_id);
+			JANUS_LOG(LOG_ERR, "room %lu has started a ffmpeg progress \n", room_id);
 			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
-			g_snprintf(error_cause, 512, "room %ul has started a ffmpeg progress", room_id);
+			g_snprintf(error_cause, 512, "room %lu has started a ffmpeg progress", room_id);
 			goto prepare_response;
 		}
 		janus_mutex_unlock(&ffmpegps_mutex);
