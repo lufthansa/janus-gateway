@@ -3732,10 +3732,11 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			JANUS_LOG(LOG_ERR, "room %lu has started a ffmpeg progress \n", room_id);
 			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
 			g_snprintf(error_cause, 512, "room %lu has started a ffmpeg progress", room_id);
+			janus_mutex_unlock(&ffmpegps_mutex);
 			goto prepare_response;
 		}
 		janus_mutex_unlock(&ffmpegps_mutex);
-		
+
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "stop_rtp_forward")) {
 		JANUS_VALIDATE_JSON_OBJECT(root, stop_rtp_forward_parameters,
@@ -6568,7 +6569,8 @@ error:
 
 /* Helper to quickly relay RTP packets from publishers to subscribers */
 static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) {
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_relay_rtp_packet \n");
+	// willche comment
+	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_relay_rtp_packet \n");
 	janus_videoroom_rtp_relay_packet *packet = (janus_videoroom_rtp_relay_packet *)user_data;
 	if(!packet || !packet->data || packet->length < 1) {
 		JANUS_LOG(LOG_ERR, "Invalid packet...\n");
