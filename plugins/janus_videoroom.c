@@ -1404,9 +1404,9 @@ static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id
 {
 	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  sid = %lu rid = %lu uid = %lu \n", session_id, room_id, user_id);
 	wbx_ffmpeg_progress * ffps = NULL;
-	ffps = g_hash_table_lookup(ffps, &room_id);
+	ffps = g_hash_table_lookup(ffmpegps, &room_id);
 
-	if(ffps->user_id != user_id)
+	if(ffps == NULL || ffps->user_id != user_id)
 	{
 		return;
 	}
@@ -1446,7 +1446,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%d", room_id);
 
 		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
-#if 0
+#if 1
 		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-loglevel", "debug", "-analyzeduration",
 			"300M", "-probesize","300M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
@@ -3465,7 +3465,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "list", list);
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "rtp_forward")) {
-		// TODO: willche one room can only have one publisher
+		// TODO: willche one room can only have one publisher, add locker & check
 		
 		JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
 			error_code, error_cause, TRUE,
