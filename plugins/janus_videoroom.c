@@ -1391,12 +1391,12 @@ static void wbx_print_ffmpegps()
 // check if a room has ffmpeg progress
 static int wbx_check_ffmpeg(guint64 room_id)
 {
-	wbx_ffmpeg_progress * ffps = NULL;
-	ffps = g_hash_table_lookup(ffmpegps, &room_id);	
+	int ffps = NULL;
+	ffps = g_hash_table_contains(ffmpegps, &room_id);	
 	
 	JANUS_LOG(LOG_INFO, "willche in wbx_check_ffmpeg roomid = %ld, findret = %d \n", room_id, ffps);
 
-	return ffps == NULL ? 0:1;
+	return ffps;
 }
 
 // stop a ffmpeg progress
@@ -1458,11 +1458,9 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	ffps->user_id = user_id;
 	
 	janus_mutex_lock(&ffmpegps_mutex);
-	
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 child pid = %d \n", child_pid);
-//	g_hash_table_insert(ffmpegps, room_id, ffps);
+	g_hash_table_insert(ffmpegps, janus_uint64_dup(room_id), ffps);
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
-
 	janus_mutex_unlock(&ffmpegps_mutex);
 
 	wbx_print_ffmpegps();
@@ -2089,7 +2087,7 @@ int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
 	gateway = callback;
 
 	// willche init
-	ffmpegps = g_hash_table_new_full(g_int64_hash, g_int64_equal, NULL, (GDestroyNotify)wbx_ffmpeg_free_callback);
+	ffmpegps = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free, (GDestroyNotify)wbx_ffmpeg_free_callback);
 	janus_mutex_init(&ffmpegps_mutex);
 
 	/* Parse configuration to populate the rooms list */
@@ -2383,6 +2381,12 @@ void janus_videoroom_destroy(void) {
 	g_hash_table_destroy(rooms);
 	rooms = NULL;
 	janus_mutex_unlock(&rooms_mutex);
+
+	// willche wbx
+	janus_mutex_lock(&ffmpegps_mutex);
+	g_hash_table_destroy(ffmpegps);
+	ffmpegps = NULL;
+	janus_mutex_unlock(&ffmpegps_mutex);
 
 	g_async_queue_unref(messages);
 	messages = NULL;
