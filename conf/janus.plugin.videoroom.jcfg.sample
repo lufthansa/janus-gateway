@@ -72,3 +72,13 @@ room-5678: {
    videocodec = "h264"
    video_svc = true
 }
+room-5679: {
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 6
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   video_svc = true
+}
+

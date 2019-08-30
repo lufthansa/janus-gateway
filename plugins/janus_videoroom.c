@@ -3722,7 +3722,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "videoroom", json_string("rtp_forward"));
 
 		// willche if no error, start ffmpeg rtp->rtmp shell
-		janus_mutex_lock(ffmpegps_mutex);
+		janus_mutex_lock(&ffmpegps_mutex);
 		if(!wbx_check_ffmpeg(room_id))
 		{
 			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0]);
@@ -3734,7 +3734,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			g_snprintf(error_cause, 512, "room %ul has started a ffmpeg progress", room_id);
 			goto prepare_response;
 		}
-		janus_mutex_unlock(ffmpegps_mutex);
+		janus_mutex_unlock(&ffmpegps_mutex);
 		
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "stop_rtp_forward")) {
