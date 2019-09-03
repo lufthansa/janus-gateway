@@ -1450,7 +1450,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-loglevel", "debug", "-analyzeduration",
 			"300M", "-probesize","300M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
-			"-vcodec","copy","-f","flv","-an",ffmpegcmd, NULL);
+			"-vcodec","copy","-f","flv",ffmpegcmd, NULL);
 #endif
 		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
@@ -3723,6 +3723,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 
 		// willche if no error, start ffmpeg rtp->rtmp shell
 		janus_mutex_lock(&ffmpegps_mutex);
+#if 1
 		if(!wbx_check_ffmpeg(room_id))
 		{
 			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0]);
@@ -3735,6 +3736,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			janus_mutex_unlock(&ffmpegps_mutex);
 			goto prepare_response;
 		}
+#endif
 		janus_mutex_unlock(&ffmpegps_mutex);
 
 		goto prepare_response;

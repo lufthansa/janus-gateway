@@ -70,6 +70,7 @@ room-5678: {
    bitrate = 512000
    fir_freq = 1
    videocodec = "h264"
+   audiocodec = "opus"
    video_svc = true
 }
 room-5679: {
@@ -79,6 +80,7 @@ room-5679: {
    bitrate = 512000
    fir_freq = 1
    videocodec = "h264"
+   audiocodec = "opus"
    video_svc = true
 }
 
