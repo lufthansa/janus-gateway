@@ -1370,7 +1370,7 @@ typedef struct wbx_ffmpeg_progress {
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
 static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id);
-static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port);
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port);
 static int wbx_check_ffmpeg(guint64 room_id);
 static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
@@ -1425,7 +1425,7 @@ static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id
 }
 
 // start a ffmpeg progresss
-static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port)
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port)
 {
 	// TODO lock.
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %ld, videoport = %d \n", session_id, room_id, video_port);
@@ -1433,7 +1433,9 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	// prepare sdp file
 	system("cp /usr/local/sdp.file /usr/local/sdp/tmp.sdp");
 	char sedcmd[MAX_PATH_LEN] = {0};
-	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/8085/%d/g' /usr/local/sdp/tmp.sdp", video_port);
+	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realvport/%d/g' /usr/local/sdp/tmp.sdp", video_port);
+	system(sedcmd);
+	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realaport/%d/g' /usr/local/sdp/tmp.sdp", audio_port);
 	system(sedcmd);
 
 	pid_t child_pid = 0;
@@ -3726,7 +3728,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 #if 1
 		if(!wbx_check_ffmpeg(room_id))
 		{
-			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0]);
+			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port);
 		}
 		else
 		{
