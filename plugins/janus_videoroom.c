@@ -1428,16 +1428,25 @@ static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id
 static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port)
 {
 	// TODO lock.
-	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %ld, videoport = %d \n", session_id, room_id, video_port);
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %ld, videoport = %d, audio-port = %d \n", 
+		session_id, room_id, video_port, audio_port);
 
 	// prepare sdp file
-	system("cp /usr/local/sdp.file /usr/local/sdp/tmp.sdp");
+	if(audio_port) 
+	{
+		system("cp /usr/local/sdp.file /usr/local/sdp/tmp.sdp");
+	}
+	else 
+	{
+		system("cp /usr/local/sdp/sdpna /usr/local/sdp/tmp.sdp");
+	}
+
 	char sedcmd[MAX_PATH_LEN] = {0};
 	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realvport/%d/g' /usr/local/sdp/tmp.sdp", video_port);
 	system(sedcmd);
 	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realaport/%d/g' /usr/local/sdp/tmp.sdp", audio_port);
 	system(sedcmd);
-
+	
 	pid_t child_pid = 0;
 	child_pid = fork();
 
