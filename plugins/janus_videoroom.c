@@ -3494,7 +3494,6 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		}
 		json_t *room = json_object_get(root, "room");
 
-		
 		guint64 room_id = json_integer_value(room);
 
 		// TODO: lock
@@ -3503,7 +3502,6 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			JANUS_LOG(LOG_ERR, "room %lu has started a ffmpeg progress \n", room_id);
 			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
 			g_snprintf(error_cause, 512, "room %lu has started a ffmpeg progress", room_id);
-			janus_mutex_unlock(&ffmpegps_mutex);
 			goto prepare_response;
 		}
 		
