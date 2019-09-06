@@ -3474,7 +3474,16 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "list", list);
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "rtp_forward")) {
-		
+		// TODO: lock
+		if(wbx_check_ffmpeg(room_id))
+		{
+			JANUS_LOG(LOG_ERR, "room %lu has started a ffmpeg progress \n", room_id);
+			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
+			g_snprintf(error_cause, 512, "room %lu has started a ffmpeg progress", room_id);
+			janus_mutex_unlock(&ffmpegps_mutex);
+			goto prepare_response;
+		}
+
 		JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
 			error_code, error_cause, TRUE,
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
@@ -5803,6 +5812,7 @@ static void *janus_videoroom_handler(void *data) {
 				json_object_set_new(event, "videoroom", json_string("event"));
 				json_object_set_new(event, "room", json_integer(participant->room_id));
 				json_object_set_new(event, "unpublished", json_string("ok"));
+				wbx_kill_ffmpeg(participant->session->sdp_sessid, participant->room_id, participant->user_id);
 			} else if(!strcasecmp(request_text, "leave")) {
 				/* Prepare an event to confirm the request */
 				event = json_object();
