@@ -5830,6 +5830,9 @@ static void *janus_videoroom_handler(void *data) {
 				participant->video_active = FALSE;
 				participant->data_active = FALSE;
 				session->started = FALSE;
+
+				// willche add
+				session->participant_type = janus_videoroom_p_type_none;
 				//~ session->destroy = TRUE;
 			} else {
 				janus_refcount_decrease(&participant->ref);

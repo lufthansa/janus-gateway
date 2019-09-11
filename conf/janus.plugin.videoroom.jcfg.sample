@@ -83,4 +83,64 @@ room-5679: {
    audiocodec = "opus"
    video_svc = true
 }
+room-5700: {
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 1
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   audiocodec = "opus"
+   video_svc = true
+}
+room-5710: {
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 1
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   audiocodec = "opus"
+   video_svc = true
+}
+room-5720: {
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 1
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   audiocodec = "opus"
+   video_svc = true
+}
+room-5730: {
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 1
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   audiocodec = "opus"
+   video_svc = true
+}
+room-5740: {
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 1
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   audiocodec = "opus"
+   video_svc = true
+}
+room-5750: {
+   description = "VP9-SVC Demo Room"
+   secret = "adminpwd"
+   publishers = 1
+   bitrate = 512000
+   fir_freq = 1
+   videocodec = "h264"
+   audiocodec = "opus"
+   video_svc = true
+}
 
