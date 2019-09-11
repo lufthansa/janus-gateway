@@ -6230,6 +6230,9 @@ static void *janus_videoroom_handler(void *data) {
 				json_object_set_new(event, "room", json_integer(room_id));
 				json_object_set_new(event, "left", json_string("ok"));
 				session->started = FALSE;
+
+				// willche add
+				session->participant_type = janus_videoroom_p_type_none;
 			} else {
 				JANUS_LOG(LOG_ERR, "Unknown request '%s'\n", request_text);
 				error_code = JANUS_VIDEOROOM_ERROR_INVALID_REQUEST;
