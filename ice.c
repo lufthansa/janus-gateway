@@ -394,7 +394,7 @@ static GSource *janus_ice_outgoing_traffic_create(janus_ice_handle *handle, GDes
 
 /* Time, in seconds, that should pass with no media (audio or video) being
  * received before Janus notifies you about this with a receiving=false */
-#define DEFAULT_NO_MEDIA_TIMER	1
+#define DEFAULT_NO_MEDIA_TIMER	5
 static uint no_media_timer = DEFAULT_NO_MEDIA_TIMER;
 void janus_set_no_media_timer(uint timer) {
 	no_media_timer = timer;
@@ -3726,6 +3726,8 @@ static gboolean janus_ice_outgoing_stats_handle(gpointer user_data) {
 			/* We missed more than no_second_timer seconds of video! */
 			component->in_stats.video[0].notified_lastsec = TRUE;
 			JANUS_LOG(LOG_WARN, "[%"SCNu64"] Didn't receive video for more than a second...\n", handle->handle_id);
+
+			// willche video down
 			janus_ice_notify_media(handle, TRUE, FALSE);
 		}
 	}
