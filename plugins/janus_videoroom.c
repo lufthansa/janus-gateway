@@ -1454,7 +1454,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	{
 		// start ffmpeg
 		char ffmpegcmd[MAX_PATH_LEN] = {0};
-		snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%d", room_id);
+		snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://10.224.172.44:1935/hls/%d", room_id);
 
 		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
 #if 1
