@@ -1458,7 +1458,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 
 		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
 #if 1
-		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-loglevel", "debug", "-analyzeduration",
+		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-analyzeduration", // "-loglevel", "debug",
 			"300M", "-probesize","300M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
 			"-vcodec","libx264", "-s", "1920x1080", "-f","flv",ffmpegcmd, NULL);

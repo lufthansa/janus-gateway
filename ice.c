@@ -394,7 +394,7 @@ static GSource *janus_ice_outgoing_traffic_create(janus_ice_handle *handle, GDes
 
 /* Time, in seconds, that should pass with no media (audio or video) being
  * received before Janus notifies you about this with a receiving=false */
-#define DEFAULT_NO_MEDIA_TIMER	5
+#define DEFAULT_NO_MEDIA_TIMER	10
 static uint no_media_timer = DEFAULT_NO_MEDIA_TIMER;
 void janus_set_no_media_timer(uint timer) {
 	no_media_timer = timer;
