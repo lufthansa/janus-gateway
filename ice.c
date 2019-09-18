@@ -3715,7 +3715,7 @@ static gboolean janus_ice_outgoing_stats_handle(gpointer user_data) {
 					now-last >= (gint64)no_media_timer*G_USEC_PER_SEC) {
 			/* We missed more than no_second_timer seconds of audio! */
 			component->in_stats.audio.notified_lastsec = TRUE;
-			JANUS_LOG(LOG_WARN, "[%"SCNu64"] Didn't receive audio for more than %d seconds...\n", handle->handle_id, no_media_timer);
+			JANUS_LOG(LOG_WARN, "[%"SCNu64"] 1 Didn't receive audio for more than %d seconds...\n", handle->handle_id, no_media_timer);
 			janus_ice_notify_media(handle, FALSE, FALSE);
 		}
 		/* Video */
@@ -3725,7 +3725,7 @@ static gboolean janus_ice_outgoing_stats_handle(gpointer user_data) {
 					now-last >= (gint64)no_media_timer*G_USEC_PER_SEC) {
 			/* We missed more than no_second_timer seconds of video! */
 			component->in_stats.video[0].notified_lastsec = TRUE;
-			JANUS_LOG(LOG_WARN, "[%"SCNu64"] Didn't receive video for more than a second...\n", handle->handle_id);
+			JANUS_LOG(LOG_WARN, "[%"SCNu64"] 2 Didn't receive video for more than %d second...\n", handle->handle_id, no_media_timer);
 
 			// willche video down
 			janus_ice_notify_media(handle, TRUE, FALSE);
