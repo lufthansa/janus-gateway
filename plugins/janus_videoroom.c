@@ -4431,7 +4431,7 @@ void janus_videoroom_setup_media(janus_plugin_session *handle) {
 void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
 
 	// willche comment
-	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp len %d \n", len);
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp video = %d, len %d \n", video, len);
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized) || !gateway)
 		return;
 	janus_videoroom_session *session = (janus_videoroom_session *)handle->plugin_handle;
