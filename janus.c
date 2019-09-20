@@ -562,6 +562,7 @@ static gboolean janus_check_sessions(gpointer user_data) {
 				/* FIXME Is this safe? apparently it causes hash table errors on the console */
 				g_hash_table_iter_remove(&iter);
 
+				JANUS_LOG(LOG_WARN, "in janus_check_sessions before janus_session_destroy()\n");
 				janus_session_destroy(session);
 			}
 		}
@@ -1063,6 +1064,7 @@ int janus_process_incoming_request(janus_request *request) {
 			session->source->transport->session_over(session->source->instance, session->session_id, FALSE, FALSE);
 		}
 		/* Schedule the session for deletion */
+		JANUS_LOG(LOG_WARN, "in janus_process_incoming_request before janus_session_destroy()\n");
 		janus_session_destroy(session);
 
 		/* Prepare JSON reply */
@@ -2329,6 +2331,7 @@ int janus_process_incoming_admin_request(janus_request *request) {
 				session->source->transport->session_over(session->source->instance, session->session_id, FALSE, FALSE);
 			}
 			/* Schedule the session for deletion */
+			JANUS_LOG(LOG_WARN, "in janus_process_incoming_admin_request before janus_session_destroy()\n");
 			janus_session_destroy(session);
 
 			/* Prepare JSON reply */
@@ -2886,6 +2889,7 @@ void janus_transport_gone(janus_transport *plugin, janus_transport_session *tran
 				JANUS_LOG(LOG_VERB, "  -- Marking Session %"SCNu64" as over\n", session->session_id);
 				if(reclaim_session_timeout < 1) { /* Reclaim session timeouts are disabled */
 					/* Mark the session as destroyed */
+					JANUS_LOG(LOG_WARN, "in janus_tansport gone before janus_session_destroy()\n");
 					janus_session_destroy(session);
 					g_hash_table_iter_remove(&iter);
 				} else {
