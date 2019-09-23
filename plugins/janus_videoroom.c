@@ -3759,12 +3759,17 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		{
 			// willche add custom rtmp server
 			json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
-			char *rtmp_server = NULL;
-			if(json_stmp_server) {
-				rtmp_server = json_string_value(json_stmp_server);
+
+			if(json_stmp_server) 
+			{
+				const char * rtmp_server = json_string_value(json_stmp_server);
+				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, rtmp_server);
 			}
-	
-			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, rtmp_server);
+			else
+			{
+				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, NULL);
+			}
+
 		}
 		else
 		{
