@@ -1370,7 +1370,7 @@ typedef struct wbx_ffmpeg_progress {
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
 static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id);
-static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port);
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port, const char* const rtmp_server);
 static int wbx_check_ffmpeg(guint64 room_id);
 static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
@@ -1425,7 +1425,7 @@ static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id
 }
 
 // start a ffmpeg progresss
-static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port)
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port, const char* const rtmp_server)
 {
 	// TODO lock.
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %ld, videoport = %d, audio-port = %d \n", 
@@ -1454,8 +1454,15 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	{
 		// start ffmpeg
 		char ffmpegcmd[MAX_PATH_LEN] = {0};
-		snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%d", room_id);
-
+		if(rtmp_server)
+		{
+			snprintf(ffmpegcmd, MAX_PATH_LEN, "%s", rtmp_server);
+		}
+		else 
+		{
+			snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%d", room_id);
+		}
+		
 		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
 #if 1
 		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-analyzeduration", // "-loglevel", "debug",
@@ -3750,7 +3757,14 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 #if 1
 		if(!wbx_check_ffmpeg(room_id))
 		{
-			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port);
+			// willche add custom rtmp server
+			json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
+			char *rtmp_server = NULL;
+			if(json_stmp_server) {
+				rtmp_server = json_string_value(json_stmp_server);
+			}
+	
+			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, rtmp_server);
 		}
 		else
 		{
