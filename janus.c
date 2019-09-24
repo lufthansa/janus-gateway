@@ -545,7 +545,8 @@ static gboolean janus_check_sessions(gpointer user_data) {
 					!g_atomic_int_compare_and_exchange(&session->timeout, 0, 1)) ||
 					((g_atomic_int_get(&session->transport_gone) && now - session->last_activity >= (gint64)reclaim_session_timeout * G_USEC_PER_SEC) &&
 							!g_atomic_int_compare_and_exchange(&session->timeout, 0, 1))) {
-				JANUS_LOG(LOG_INFO, "Timeout expired for session %"SCNu64"...\n", session->session_id);
+				JANUS_LOG(LOG_INFO, "Timeout expired for session %"SCNu64"...\n", session->session_id);				
+				JANUS_LOG(LOG_INFO, "Timeout expired session_timeout %d, reclaim_session_timeout %d ...\n", session_timeout, reclaim_session_timeout);
 				/* Mark the session as over, we'll deal with it later */
 				janus_session_handles_clear(session);
 				/* Notify the transport */
