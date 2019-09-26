@@ -1454,7 +1454,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	{
 		// start ffmpeg
 		char ffmpegcmd[MAX_PATH_LEN] = {0};
-		if(rtmp_server)
+		if(rtmp_server && strlen(rtmp_server) > 0)
 		{
 			snprintf(ffmpegcmd, MAX_PATH_LEN, "%s", rtmp_server);
 		}
@@ -1468,7 +1468,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-analyzeduration", "800M", // "-loglevel", "debug",
 			"-probesize","800M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
-			"-vcodec","libx264", "-ss", "5", "-framerate", "24", "-g", "48", "-s", "1920x1080", "-f","flv",ffmpegcmd, NULL);
+			"-vcodec","libx264", "-ss", "5", "-framerate", "24", "-g", "24", "-s", "1920x1080", "-f","flv",ffmpegcmd, NULL);
 #endif
 		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
