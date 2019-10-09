@@ -1474,7 +1474,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-analyzeduration", "800M", // "-loglevel", "debug",
 			"-probesize","800M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
-			"-vcodec","libx264", "-ss", "5", "-framerate", "24", "-g", "24", "-s", wh, "-f","flv",ffmpegcmd, NULL);
+			"-vcodec","libx264", "-ss", "2", "-framerate", "18", "-g", "18", "-s", wh, "-f","flv",ffmpegcmd, NULL);
 #endif
 		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
@@ -2807,7 +2807,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 	json_t *request = json_object_get(message, "request");
 	const char *request_text = json_string_value(request);
 
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request test = %s\n", request_text);
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request text = %s\n", request_text);
 
 	/* Parse the message */
 	int error_code = 0;
@@ -4223,6 +4223,10 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		goto prepare_response;
 	} else {
 		/* Not a request we recognize, don't do anything */
+
+		// willche handler cut
+		JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request Not a request we recognize, don't do anything \n");
+		
 		return NULL;
 	}
 
