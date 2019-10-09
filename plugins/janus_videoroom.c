@@ -1370,7 +1370,7 @@ typedef struct wbx_ffmpeg_progress {
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
 static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id);
-static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port, const char* const rtmp_server);
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
 static int wbx_check_ffmpeg(guint64 room_id);
 static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
@@ -1425,7 +1425,7 @@ static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id
 }
 
 // start a ffmpeg progresss
-static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port, const char* const rtmp_server)
+static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server)
 {
 	// TODO lock.
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %ld, videoport = %d, audio-port = %d \n", 
@@ -1452,6 +1452,12 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 
 	if(child_pid == 0)
 	{
+		char wh[MAX_PATH_LEN] = "1920x1080";
+		if(width)
+		{
+			snprintf(wh, MAX_PATH_LEN, "%dx%d", width, height);
+		}
+		
 		// start ffmpeg
 		char ffmpegcmd[MAX_PATH_LEN] = {0};
 		if(rtmp_server && strlen(rtmp_server) > 0)
@@ -1468,7 +1474,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-analyzeduration", "800M", // "-loglevel", "debug",
 			"-probesize","800M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
-			"-vcodec","libx264", "-ss", "5", "-framerate", "24", "-g", "24", "-s", "1920x1080", "-f","flv",ffmpegcmd, NULL);
+			"-vcodec","libx264", "-ss", "5", "-framerate", "24", "-g", "24", "-s", wh, "-f","flv",ffmpegcmd, NULL);
 #endif
 		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
@@ -2798,9 +2804,10 @@ static int janus_videoroom_access_room(json_t *root, gboolean check_modify, gboo
 
 /* Helper method to process synchronous requests */
 static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_session *session, json_t *message) {
-	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request \n");
 	json_t *request = json_object_get(message, "request");
 	const char *request_text = json_string_value(request);
+
+	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request test = %s\n", request_text);
 
 	/* Parse the message */
 	int error_code = 0;
@@ -3759,15 +3766,24 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		{
 			// willche add custom rtmp server
 			json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
+			
+			json_t *view_jwidth = json_object_get(root, "view_width");
+			json_t *view_jheigth = json_object_get(root, "view_heigth");
+			int view_iheigth = 0;
+			int view_iwidth = 0;
+			if(view_jwidth) {
+				view_iheigth = json_integer_value(view_jheigth);			
+				view_iwidth = json_integer_value(view_jwidth);
+			}
 
 			if(json_stmp_server) 
 			{
 				const char * rtmp_server = json_string_value(json_stmp_server);
-				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, rtmp_server);
+				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, rtmp_server);
 			}
 			else
 			{
-				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, NULL);
+				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, NULL);
 			}
 
 		}
