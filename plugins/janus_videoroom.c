@@ -4225,7 +4225,77 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		/* Not a request we recognize, don't do anything */
 
 		// willche handler cut
-		JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request Not a request we recognize, don't do anything \n");
+		if(!strcasecmp(request_text, "configure"))
+		{
+			JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request configure \n");
+			guint64 room_id = 0;
+			json_t *room = json_object_get(root, "room");
+			if(room)
+			{
+				room_id = json_integer_value(room);
+			}
+			
+			if(room_id)
+			{
+				if(wbx_check_ffmpeg(room_id))
+				{
+					
+					// willche add custom rtmp server
+					json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
+					
+					json_t *view_jwidth = json_object_get(root, "view_width");
+					json_t *view_jheigth = json_object_get(root, "view_heigth");
+					int view_iheigth = 0;
+					int view_iwidth = 0;
+					if(view_jwidth) 
+					{
+						view_iheigth = json_integer_value(view_jheigth);			
+						view_iwidth = json_integer_value(view_jwidth);
+					}
+
+					int video_port = -1;
+					int audio_port = -1;
+					int publisher_id = -1;
+
+					json_t *pub_id = json_object_get(root, "publisher_id");
+					json_t *vid_port = json_object_get(root, "video_port");
+					json_t *aud_port = json_object_get(root, "audio_port");
+					if(vid_port && pub_id && aud_port)
+					{
+						publisher_id = json_integer_value(pub_id);
+						video_port = json_integer_value(vid_port);
+						audio_port = json_integer_value(aud_port);
+
+						janus_videoroom_publisher publisher = janus_videoroom_session_get_publisher(session);
+						JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request configure uid = %ld, pid = %ld\n", publisher->user_id, publisher_id);
+						if(publisher && publisher->user_id == publisher_id)
+						{
+							// stop
+							wbx_kill_ffmpeg(session->sdp_sessid, publisher->room_id, publisher->user_id);
+
+							// start
+							if(json_stmp_server) 
+							{
+								const char * rtmp_server = json_string_value(json_stmp_server);
+								wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port, audio_port, view_iwidth, view_iheigth, rtmp_server);
+							}
+							else
+							{
+								wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port, audio_port, view_iwidth, view_iheigth, NULL);
+							}
+						}
+						else
+						{
+							JANUS_LOG(LOG_ERR, "willche in janus_videoroom_process_synchronous_request configure error publisher \n");
+						}
+					}
+					else
+					{
+						JANUS_LOG(LOG_ERR, "willche in janus_videoroom_process_synchronous_request configure no params \n");
+					}
+				}
+			}
+		}
 		
 		return NULL;
 	}
