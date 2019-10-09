@@ -4267,7 +4267,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 						video_port = json_integer_value(vid_port);
 						audio_port = json_integer_value(aud_port);
 
-						janus_videoroom_publisher publisher = janus_videoroom_session_get_publisher(session);
+						janus_videoroom_publisher* publisher = janus_videoroom_session_get_publisher(session);
 						JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request configure uid = %ld, pid = %ld\n", publisher->user_id, publisher_id);
 						if(publisher && publisher->user_id == publisher_id)
 						{
