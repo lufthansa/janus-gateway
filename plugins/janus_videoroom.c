@@ -4237,6 +4237,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			
 			if(room_id)
 			{
+				JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request configure has room id\n");
 				if(wbx_check_ffmpeg(room_id))
 				{
 					
