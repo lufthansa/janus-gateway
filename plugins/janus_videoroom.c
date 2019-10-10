@@ -1379,7 +1379,8 @@ static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer d
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data)
 {
 	wbx_ffmpeg_progress * ffps = (wbx_ffmpeg_progress*) value;
- 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %d sessionid = %ld\n", key, ffps->pid, ffps->sdp_sessid);
+	guint64* rm_id = (guint64*) key;
+ 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %d sessionid = %ld\n", *rm_id, ffps->pid, ffps->sdp_sessid);
 }
 
 // print hash table for debug
@@ -1450,14 +1451,14 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 	pid_t child_pid = 0;
 	child_pid = fork();
 
+	char wh[MAX_PATH_LEN] = "1920x1080";
+	if(width)
+	{
+		snprintf(wh, MAX_PATH_LEN, "%dx%d", width, height);
+	}
+	
 	if(child_pid == 0)
 	{
-		char wh[MAX_PATH_LEN] = "1920x1080";
-		if(width)
-		{
-			snprintf(wh, MAX_PATH_LEN, "%dx%d", width, height);
-		}
-		
 		// start ffmpeg
 		char ffmpegcmd[MAX_PATH_LEN] = {0};
 		if(rtmp_server && strlen(rtmp_server) > 0)
@@ -1474,7 +1475,7 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-analyzeduration", "800M", // "-loglevel", "debug",
 			"-probesize","800M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
-			"-vcodec","libx264", "-ss", "2", "-framerate", "18", "-g", "18", "-s", wh, "-f","flv",ffmpegcmd, NULL);
+			"-vcodec","libx264", "-ss", "3", "-framerate", "18", "-g", "18", "-s", wh, "-f","flv",ffmpegcmd, NULL);
 #endif
 		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
@@ -1718,6 +1719,10 @@ static void janus_videoroom_publisher_dereference_nodebug(janus_videoroom_publis
 static void janus_videoroom_publisher_destroy(janus_videoroom_publisher *p) {
 	JANUS_LOG(LOG_INFO, "willche in janus_videoroom_publisher_destroy \n");
 	if(p && g_atomic_int_compare_and_exchange(&p->destroyed, 0, 1))
+
+		// stop ffmpeg
+		wbx_kill_ffmpeg(p->session->sdp_sessid, p->room_id, p->user_id);
+	
 		janus_refcount_decrease(&p->ref);
 }
 
@@ -2607,6 +2612,7 @@ void janus_videoroom_destroy_session(janus_plugin_session *handle, int *error) {
 		*error = -2;
 		return;
 	}
+
 	if(g_atomic_int_get(&session->destroyed)) {
 		janus_mutex_unlock(&sessions_mutex);
 		JANUS_LOG(LOG_WARN, "VideoRoom session already marked as destroyed...\n");
@@ -3768,7 +3774,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
 			
 			json_t *view_jwidth = json_object_get(root, "view_width");
-			json_t *view_jheigth = json_object_get(root, "view_heigth");
+			json_t *view_jheigth = json_object_get(root, "view_height");
 			int view_iheigth = 0;
 			int view_iwidth = 0;
 			if(view_jwidth) {
@@ -4235,8 +4241,10 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 				room_id = json_integer_value(room);
 			}
 			
-			if(room_id)
+			janus_videoroom_publisher* publisher = janus_videoroom_session_get_publisher(session);
+			if(room_id && publisher)
 			{
+				room_id = publisher->room_id;
 				JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request configure has room id\n");
 				if(wbx_check_ffmpeg(room_id))
 				{
@@ -4245,18 +4253,18 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 					json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
 					
 					json_t *view_jwidth = json_object_get(root, "view_width");
-					json_t *view_jheigth = json_object_get(root, "view_heigth");
+					json_t *view_jheigth = json_object_get(root, "view_height");
 					int view_iheigth = 0;
 					int view_iwidth = 0;
 					if(view_jwidth) 
 					{
-						view_iheigth = json_integer_value(view_jheigth);			
+						view_iheigth = json_integer_value(view_jheigth);
 						view_iwidth = json_integer_value(view_jwidth);
 					}
 
 					int video_port = -1;
 					int audio_port = -1;
-					int publisher_id = -1;
+					guint64 publisher_id = -1;
 
 					json_t *pub_id = json_object_get(root, "publisher_id");
 					json_t *vid_port = json_object_get(root, "video_port");
@@ -4267,7 +4275,6 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 						video_port = json_integer_value(vid_port);
 						audio_port = json_integer_value(aud_port);
 
-						janus_videoroom_publisher* publisher = janus_videoroom_session_get_publisher(session);
 						JANUS_LOG(LOG_INFO, "willche in janus_videoroom_process_synchronous_request configure uid = %ld, pid = %ld\n", publisher->user_id, publisher_id);
 						if(publisher && publisher->user_id == publisher_id)
 						{
