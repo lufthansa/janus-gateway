@@ -1380,7 +1380,7 @@ static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer d
 {
 	wbx_ffmpeg_progress * ffps = (wbx_ffmpeg_progress*) value;
 	guint64* rm_id = (guint64*) key;
- 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %d sessionid = %ld\n", *rm_id, ffps->pid, ffps->sdp_sessid);
+ 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %ld sessionid = %ld\n", *rm_id, ffps->pid, ffps->sdp_sessid);
 }
 
 // print hash table for debug
@@ -1472,10 +1472,12 @@ static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_i
 		
 		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
 #if 1
-		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-analyzeduration", "800M", // "-loglevel", "debug",
+		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-thread_queue_size" ,"512" , "-analyzeduration", "800M", 
+			// "-loglevel", "debug",
 			"-probesize","800M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
 			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
-			"-vcodec","libx264", "-ss", "3", "-framerate", "18", "-g", "18", "-s", wh, "-f","flv",ffmpegcmd, NULL);
+			"-max_muxing_queue_size", "1024","-vcodec","libx264", "-ss", "3", "-framerate", "18", 
+			"-g", "18", "-s", wh, "-f","flv",ffmpegcmd, NULL);
 #endif
 		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
 		exit(0);
