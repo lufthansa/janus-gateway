@@ -324,6 +324,7 @@ static janus_plugin janus_videocall_plugin =
 
 /* Plugin creator */
 janus_plugin *create(void) {
+	JANUS_LOG(LOG_INFO, "janus_videocall %s created!\n", JANUS_VIDEOCALL_NAME);
 	JANUS_LOG(LOG_VERB, "%s created!\n", JANUS_VIDEOCALL_NAME);
 	return &janus_videocall_plugin;
 }
@@ -391,11 +392,13 @@ static GHashTable *sessions;
 static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 
 static void janus_videocall_session_destroy(janus_videocall_session *session) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_session_destroy \n");
 	if(session && g_atomic_int_compare_and_exchange(&session->destroyed, 0, 1))
 		janus_refcount_decrease(&session->ref);
 }
 
 static void janus_videocall_session_free(const janus_refcount *session_ref) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_session_free \n");
 	janus_videocall_session *session = janus_refcount_containerof(session_ref, janus_videocall_session, ref);
 	/* Remove the reference to the core plugin session */
 	janus_refcount_decrease(&session->handle->ref);
@@ -405,6 +408,7 @@ static void janus_videocall_session_free(const janus_refcount *session_ref) {
 }
 
 static void janus_videocall_message_free(janus_videocall_message *msg) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_message_free \n");
 	if(!msg || msg == &exit_message)
 		return;
 
@@ -447,6 +451,7 @@ static void janus_videocall_message_free(janus_videocall_message *msg) {
 
 /* Plugin implementation */
 int janus_videocall_init(janus_callbacks *callback, const char *config_path) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_init \n");
 	if(g_atomic_int_get(&stopping)) {
 		/* Still stopping from before */
 		return -1;
@@ -500,6 +505,7 @@ int janus_videocall_init(janus_callbacks *callback, const char *config_path) {
 }
 
 void janus_videocall_destroy(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_destroy \n");
 	if(!g_atomic_int_get(&initialized))
 		return;
 	g_atomic_int_set(&stopping, 1);
@@ -522,35 +528,43 @@ void janus_videocall_destroy(void) {
 }
 
 int janus_videocall_get_api_compatibility(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_get_api_compatibility \n");
 	/* Important! This is what your plugin MUST always return: don't lie here or bad things will happen */
 	return JANUS_PLUGIN_API_VERSION;
 }
 
 int janus_videocall_get_version(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_get_version \n");
 	return JANUS_VIDEOCALL_VERSION;
 }
 
 const char *janus_videocall_get_version_string(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_get_version_string \n");
 	return JANUS_VIDEOCALL_VERSION_STRING;
 }
 
 const char *janus_videocall_get_description(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_get_description \n");
 	return JANUS_VIDEOCALL_DESCRIPTION;
 }
 
 const char *janus_videocall_get_name(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_get_name \n");
 	return JANUS_VIDEOCALL_NAME;
 }
 
 const char *janus_videocall_get_author(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_get_author \n");
 	return JANUS_VIDEOCALL_AUTHOR;
 }
 
 const char *janus_videocall_get_package(void) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_get_package \n");
 	return JANUS_VIDEOCALL_PACKAGE;
 }
 
 void janus_videocall_create_session(janus_plugin_session *handle, int *error) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_create_session \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized)) {
 		*error = -1;
 		return;
@@ -579,6 +593,7 @@ void janus_videocall_create_session(janus_plugin_session *handle, int *error) {
 }
 
 void janus_videocall_destroy_session(janus_plugin_session *handle, int *error) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_destroy_session \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized)) {
 		*error = -1;
 		return;
@@ -603,6 +618,7 @@ void janus_videocall_destroy_session(janus_plugin_session *handle, int *error) {
 }
 
 json_t *janus_videocall_query_session(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_query_session \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized)) {
 		return NULL;
 	}
@@ -657,6 +673,7 @@ json_t *janus_videocall_query_session(janus_plugin_session *handle) {
 }
 
 struct janus_plugin_result *janus_videocall_handle_message(janus_plugin_session *handle, char *transaction, json_t *message, json_t *jsep) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_handle_message \n");
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return janus_plugin_result_new(JANUS_PLUGIN_ERROR, g_atomic_int_get(&stopping) ? "Shutting down" : "Plugin not initialized", NULL);
 	janus_videocall_session *session = (janus_videocall_session *)handle->plugin_handle;
@@ -678,6 +695,7 @@ struct janus_plugin_result *janus_videocall_handle_message(janus_plugin_session 
 }
 
 void janus_videocall_setup_media(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_setup_media \n");
 	JANUS_LOG(LOG_INFO, "[%s-%p] WebRTC media is now available\n", JANUS_VIDEOCALL_PACKAGE, handle);
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
@@ -693,6 +711,7 @@ void janus_videocall_setup_media(janus_plugin_session *handle) {
 }
 
 void janus_videocall_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_incoming_rtp \n");
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
 	if(gateway) {
@@ -783,6 +802,7 @@ void janus_videocall_incoming_rtp(janus_plugin_session *handle, int video, char 
 }
 
 void janus_videocall_incoming_rtcp(janus_plugin_session *handle, int video, char *buf, int len) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_incoming_rtcp \n");
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
 	if(gateway) {
@@ -813,6 +833,7 @@ void janus_videocall_incoming_rtcp(janus_plugin_session *handle, int video, char
 }
 
 void janus_videocall_incoming_data(janus_plugin_session *handle, char *label, char *buf, int len) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_incoming_data \n");
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
 	if(gateway) {
@@ -843,6 +864,7 @@ void janus_videocall_incoming_data(janus_plugin_session *handle, char *label, ch
 }
 
 void janus_videocall_slow_link(janus_plugin_session *handle, int uplink, int video) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_slow_link \n");
 	/* The core is informing us that our peer got or sent too many NACKs, are we pushing media too hard? */
 	if(handle == NULL || g_atomic_int_get(&handle->stopped) || g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
@@ -882,6 +904,7 @@ void janus_videocall_slow_link(janus_plugin_session *handle, int uplink, int vid
 }
 
 static void janus_videocall_recorder_close(janus_videocall_session *session) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_recorder_close \n");
 	if(session->arc) {
 		janus_recorder *rc = session->arc;
 		session->arc = NULL;
@@ -906,6 +929,7 @@ static void janus_videocall_recorder_close(janus_videocall_session *session) {
 }
 
 void janus_videocall_hangup_media(janus_plugin_session *handle) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_hangup_media \n");
 	JANUS_LOG(LOG_INFO, "[%s-%p] No WebRTC media anymore\n", JANUS_VIDEOCALL_PACKAGE, handle);
 	if(g_atomic_int_get(&stopping) || !g_atomic_int_get(&initialized))
 		return;
@@ -972,6 +996,7 @@ void janus_videocall_hangup_media(janus_plugin_session *handle) {
 
 /* Thread to handle incoming messages */
 static void *janus_videocall_handler(void *data) {
+	JANUS_LOG(LOG_INFO, "willche in janus_videocall_handler \n");
 	JANUS_LOG(LOG_VERB, "Joining VideoCall handler thread\n");
 	janus_videocall_message *msg = NULL;
 	int error_code = 0;
