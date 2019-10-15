@@ -373,7 +373,7 @@ typedef struct janus_videocall_session {
 	janus_videocodec vcodec;/* Codec used for video, if available */
 	uint32_t bitrate;
 	guint16 slowlink_count;
-	struct janus_videocall_session *peer;
+	struct janus_videocall_session *peer;	// willche add list if we need one to many call.
 	janus_rtp_switching_context context;
 	uint32_t ssrc[3];		/* Only needed in case VP8 (or H.264) simulcasting is involved */
 	char *rid[3];			/* Only needed if simulcasting is rid-based */
@@ -1046,6 +1046,9 @@ static void *janus_videocall_handler(void *data) {
 		const char *msg_sdp = json_string_value(json_object_get(msg->jsep, "sdp"));
 		json_t *request = json_object_get(root, "request");
 		const char *request_text = json_string_value(request);
+
+		JANUS_LOG(LOG_INFO, "willche in janus_videocall_handler request_text = %s\n", request_text);
+		
 		json_t *result = NULL;
 		gboolean sdp_update = FALSE;
 		if(json_object_get(msg->jsep, "update") != NULL)
@@ -1108,7 +1111,9 @@ static void *janus_videocall_handler(void *data) {
 				json_object_set_new(info, "username", json_string(username_text));
 				gateway->notify_event(&janus_videocall_plugin, session->handle, info);
 			}
-		} else if(!strcasecmp(request_text, "call")) {
+		} 
+		else if(!strcasecmp(request_text, "call"))
+		{
 			/* Call another peer */
 			if(session->username == NULL) {
 				JANUS_LOG(LOG_ERR, "Register a username first\n");
@@ -1166,6 +1171,7 @@ static void *janus_videocall_handler(void *data) {
 				gateway->close_pc(session->handle);
 				goto error;
 			}
+			
 			/* If the call attempt proceeds we keep the references */
 			janus_refcount_increase(&session->ref);
 			janus_refcount_increase(&peer->ref);
@@ -1189,7 +1195,9 @@ static void *janus_videocall_handler(void *data) {
 				}
 				/* Hangup the call attempt of the user */
 				gateway->close_pc(session->handle);
-			} else {
+			} 
+			else 
+			{
 				/* Any SDP to handle? if not, something's wrong */
 				if(!msg_sdp) {
 					if(g_atomic_int_compare_and_exchange(&session->incall, 1, 0) && peer) {
@@ -1257,7 +1265,9 @@ static void *janus_videocall_handler(void *data) {
 					gateway->notify_event(&janus_videocall_plugin, session->handle, info);
 				}
 			}
-		} else if(!strcasecmp(request_text, "accept")) {
+		} 
+		else if(!strcasecmp(request_text, "accept")) 
+		{
 			/* Accept a call from another peer */
 			janus_videocall_session *peer = session->peer;
 			if(peer == NULL || !g_atomic_int_get(&session->incall) || !g_atomic_int_get(&peer->incall)) {
@@ -1362,7 +1372,9 @@ static void *janus_videocall_handler(void *data) {
 			}
 			/* We don't need this reference anymore, it was already increased by the peer calling us */
 			janus_refcount_decrease(&peer->ref);
-		} else if(!strcasecmp(request_text, "set")) {
+		} 
+		else if(!strcasecmp(request_text, "set")) 
+		{
 			/* Update the local configuration (audio/video mute/unmute, bitrate cap or recording) */
 			JANUS_VALIDATE_JSON_OBJECT(root, set_parameters,
 				error_code, error_cause, TRUE,
@@ -1603,7 +1615,9 @@ static void *janus_videocall_handler(void *data) {
 				json_decref(event);
 				json_decref(jsep);
 			}
-		} else if(!strcasecmp(request_text, "hangup")) {
+		} 
+		else if(!strcasecmp(request_text, "hangup")) 
+		{
 			json_t *hangup = json_object_get(root, "reason");
 			if(hangup && !json_is_string(hangup)) {
 				JANUS_LOG(LOG_WARN, "Invalid element (hangup should be a string), ignoring\n");
@@ -1662,7 +1676,9 @@ static void *janus_videocall_handler(void *data) {
 				/* Hangup the call on the peer, if it's still up */
 				gateway->close_pc(peer->handle);
 			}
-		} else {
+		} 
+		else 
+		{
 			JANUS_LOG(LOG_ERR, "Unknown request (%s)\n", request_text);
 			error_code = JANUS_VIDEOCALL_ERROR_INVALID_REQUEST;
 			g_snprintf(error_cause, 512, "Unknown request (%s)", request_text);
