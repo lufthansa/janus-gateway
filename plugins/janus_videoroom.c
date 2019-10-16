@@ -1337,6 +1337,11 @@ static janus_mutex rooms_mutex = JANUS_MUTEX_INITIALIZER;
 static char *admin_key = NULL;
 static gboolean lock_rtpfwd = FALSE;
 
+
+static GHashTable *ffmpegps;
+static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+
+
 typedef struct janus_videoroom_session {
 	janus_plugin_session *handle;
 	gint64 sdp_sessid;
@@ -6894,8 +6899,6 @@ typedef struct wbx_ffmpeg_progress {
 	pid_t pid;
 } wbx_ffmpeg_progress;
 
-static GHashTable *ffmpegps;
-static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
 static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id);
 static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
 static int wbx_check_ffmpeg(const char* room_id);
