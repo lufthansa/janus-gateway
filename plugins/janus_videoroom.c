@@ -1300,7 +1300,7 @@ static janus_videoroom_message exit_message;
 
 
 typedef struct janus_videoroom {
-	guint64 room_id;			/* Unique room ID */
+	gchar *room_id;			/* Unique room ID */
 	gchar *room_name;			/* Room description */
 	gchar *room_secret;			/* Secret needed to manipulate (e.g., destroy) this room */
 	gchar *room_pin;			/* Password needed to join this room, if any */
@@ -1652,7 +1652,7 @@ static void *janus_videoroom_rtp_forwarder_rtcp_thread(void *data);
 typedef struct janus_videoroom_publisher {
 	janus_videoroom_session *session;
 	janus_videoroom *room;	/* Room */
-	char* room_id;	/* Unique room ID */
+	gchar* room_id;	/* Unique room ID */
 	guint64 user_id;	/* Unique ID in the room */
 	guint32 pvt_id;		/* This is sent to the publisher for mapping purposes, but shouldn't be shared with others */
 	gchar *display;		/* Display name (just for fun) */
@@ -1712,7 +1712,7 @@ static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_publishe
 typedef struct janus_videoroom_subscriber {
 	janus_videoroom_session *session;
 	janus_videoroom *room;	/* Room */
-	char* room_id;		/* Unique room ID */
+	gchar *room_id;		/* Unique room ID */
 	janus_videoroom_publisher *feed;	/* Participant this subscriber is subscribed to */
 	gboolean close_pc;		/* Whether we should automatically close the PeerConnection when the publisher goes away */
 	guint32 pvt_id;			/* Private ID of the participant that is subscribing (if available/provided) */
@@ -5458,7 +5458,7 @@ static void *janus_videoroom_handler(void *data) {
 				}
 				janus_videoroom_publisher *publisher = g_malloc0(sizeof(janus_videoroom_publisher));
 				publisher->session = session;
-				strcpy(publisher->room_id, videoroom->room_id);
+				publisher->room_id = g_strdup(videoroom->room_id);
 				publisher->room = videoroom;
 				videoroom = NULL;
 				publisher->user_id = user_id;
@@ -5674,7 +5674,7 @@ static void *janus_videoroom_handler(void *data) {
 					janus_mutex_unlock(&videoroom->mutex);
 					janus_videoroom_subscriber *subscriber = g_malloc0(sizeof(janus_videoroom_subscriber));
 					subscriber->session = session;
-					strcpy(subscriber->room_id, videoroom->room_id);
+					subscriber->room_id = g_strdup(videoroom->room_id);
 					subscriber->room = videoroom;
 					videoroom = NULL;
 					subscriber->feed = publisher;
