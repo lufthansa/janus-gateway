@@ -1353,6 +1353,11 @@ typedef struct janus_videoroom_session {
 static GHashTable *sessions;
 static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 
+static void janus_videoroom_room_free(const janus_refcount *room_ref);
+static void janus_videoroom_publisher_dereference(janus_videoroom_publisher *p);
+static void janus_videoroom_codecstr(janus_videoroom *videoroom, char *audio_codecs, char *video_codecs, int str_len, const char *split);
+
+
 // willche: wbx struct
 #include <unistd.h>
 #include <sys/wait.h>
@@ -1369,9 +1374,9 @@ typedef struct wbx_ffmpeg_progress {
 
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
-static void wbx_kill_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id);
-static void wbx_start_ffmpeg(guint64 session_id, guint64 room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
-static int wbx_check_ffmpeg(guint64 room_id);
+static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id);
+static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
+static int wbx_check_ffmpeg(const char* room_id);
 static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
@@ -1503,11 +1508,13 @@ static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps) {
 	JANUS_LOG(LOG_INFO, "willche out wbx_ffmpeg_free \n");
 }
 
-static int wbx_remove_room(const gchar* roomid)
+static int wbx_remove_room(const char* room_id)
 {
 	janus_mutex_lock(&rooms_mutex);
 	g_hash_table_remove(rooms, room_id);	
 	janus_mutex_unlock(&rooms_mutex);
+
+	return 0;
 }
 
 static janus_videoroom * wbx_create_room(const gchar* roomid, const gchar* roomdesc)
@@ -1533,11 +1540,11 @@ static janus_videoroom * wbx_create_room(const gchar* roomid, const gchar* roomd
 	
 	videoroom->room_secret = g_strdup("adminpwd");
 
-	videoroom->is_private = false;
-	videoroom->require_pvtid = false;
+	videoroom->is_private = FALSE;
+	videoroom->require_pvtid = FALSE;
 	videoroom->max_publishers = 1;
 	videoroom->bitrate = 512000;
-	videoroom->bitrate_cap =false;
+	videoroom->bitrate_cap =FALSE;
 	videoroom->fir_freq = 1;
 
 	videoroom->audiolevel_ext = TRUE;
@@ -5375,8 +5382,8 @@ static void *janus_videoroom_handler(void *data) {
 			// willche create room
 			json_t *room = json_object_get(root, "room");
 			const char * room_id = json_string_value(room);
-			*videoroom = g_hash_table_lookup(rooms, room_id);
-			if(*videoroom) 
+			videoroom = g_hash_table_lookup(rooms, room_id);
+			if(videoroom) 
 			{
 				goto error;
 			}
