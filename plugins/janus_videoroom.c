@@ -1353,230 +1353,6 @@ typedef struct janus_videoroom_session {
 static GHashTable *sessions;
 static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 
-static void janus_videoroom_room_free(const janus_refcount *room_ref);
-static void janus_videoroom_publisher_dereference(janus_videoroom_publisher *p);
-static void janus_videoroom_codecstr(janus_videoroom *videoroom, char *audio_codecs, char *video_codecs, int str_len, const char *split);
-
-
-// willche: wbx struct
-#include <unistd.h>
-#include <sys/wait.h>
-#include <stdlib.h>
-#include <signal.h>
-
-#define MAX_PATH_LEN 512 
-
-typedef struct wbx_ffmpeg_progress {
-	gint64 sdp_sessid;
-	gint64 user_id;
-	pid_t pid;
-} wbx_ffmpeg_progress;
-
-static GHashTable *ffmpegps;
-static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
-static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id);
-static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
-static int wbx_check_ffmpeg(const char* room_id);
-static void wbx_print_ffmpegps();
-static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
-static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
-	
-static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data)
-{
-	wbx_ffmpeg_progress * ffps = (wbx_ffmpeg_progress*) value;
-	guint64* rm_id = (guint64*) key;
- 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %ld sessionid = %ld\n", *rm_id, ffps->pid, ffps->sdp_sessid);
-}
-
-// print hash table for debug
-static void wbx_print_ffmpegps()
-{
-	g_hash_table_foreach(ffmpegps, wbx_print_ffmpegps_callback, NULL);
-}
-
-// check if a room has ffmpeg progress
-static int wbx_check_ffmpeg(const char * room_id)
-{
-	int ffps = NULL;
-	ffps = g_hash_table_contains(ffmpegps, room_id);	
-	
-	JANUS_LOG(LOG_INFO, "willche in wbx_check_ffmpeg roomid = %ld, findret = %d \n", room_id, ffps);
-
-	return ffps;
-}
-
-// stop a ffmpeg progress
-static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id)
-{
-	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  sid = %lu rid = %lu uid = %lu \n", session_id, room_id, user_id);
-	wbx_ffmpeg_progress * ffps = NULL;
-	ffps = g_hash_table_lookup(ffmpegps, room_id);
-
-	if(ffps == NULL || ffps->user_id != user_id)
-	{
-		return;
-	}
-	
-	kill(ffps->pid, SIGKILL);
-	waitpid(ffps->pid, NULL, 0);
-
-	janus_mutex_lock(&ffmpegps_mutex);
-	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg before remove \n");
-	wbx_print_ffmpegps();
-	g_hash_table_remove(ffmpegps, room_id);
-	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg after remove \n");
-	wbx_print_ffmpegps();
-	janus_mutex_unlock(&ffmpegps_mutex);
-	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg  \n");
-}
-
-// start a ffmpeg progresss
-static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server)
-{
-	// TODO lock.
-	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %s, videoport = %d, audio-port = %d \n", 
-		session_id, room_id, video_port, audio_port);
-
-	// prepare sdp file
-	if(audio_port) 
-	{
-		system("cp /usr/local/sdp.file /usr/local/sdp/tmp.sdp");
-	}
-	else 
-	{
-		system("cp /usr/local/sdp/sdpna /usr/local/sdp/tmp.sdp");
-	}
-
-	char sedcmd[MAX_PATH_LEN] = {0};
-	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realvport/%d/g' /usr/local/sdp/tmp.sdp", video_port);
-	system(sedcmd);
-	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realaport/%d/g' /usr/local/sdp/tmp.sdp", audio_port);
-	system(sedcmd);
-	
-	pid_t child_pid = 0;
-	child_pid = fork();
-
-	char wh[MAX_PATH_LEN] = "1920x1080";
-	if(width)
-	{
-		snprintf(wh, MAX_PATH_LEN, "%dx%d", width, height);
-	}
-	
-	if(child_pid == 0)
-	{
-		// start ffmpeg
-		char ffmpegcmd[MAX_PATH_LEN] = {0};
-		if(rtmp_server && strlen(rtmp_server) > 0)
-		{
-			snprintf(ffmpegcmd, MAX_PATH_LEN, "%s", rtmp_server);
-		}
-		else 
-		{
-			snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
-		}
-		
-		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
-#if 1
-		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-thread_queue_size" ,"512" , "-analyzeduration", "800M", 
-			// "-loglevel", "debug",
-			"-probesize","800M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
-			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
-			"-max_muxing_queue_size", "1024","-vcodec","libx264", "-ss", "3", "-framerate", "18", 
-			"-g", "18", "-s", wh, "-f","flv",ffmpegcmd, NULL);
-#endif
-		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
-		exit(0);
-	}
-	
-	wbx_ffmpeg_progress * ffps = g_malloc0(sizeof(wbx_ffmpeg_progress));
-	ffps->pid = child_pid;
-	ffps->sdp_sessid = session_id;
-	ffps->user_id = user_id;
-	
-	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 child pid = %d \n", child_pid);
-	g_hash_table_insert(ffmpegps, g_strdup(room_id), ffps);
-	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
-	wbx_print_ffmpegps();
-	
-	JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg  \n");
-}
-
-// glib hash table for ffmpeg progress value free func
-static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps) {
-	JANUS_LOG(LOG_INFO, "willche in wbx_ffmpeg_free \n");
-	g_free(ffmpegps);
-	JANUS_LOG(LOG_INFO, "willche out wbx_ffmpeg_free \n");
-}
-
-static int wbx_remove_room(const char* room_id)
-{
-	janus_mutex_lock(&rooms_mutex);
-	g_hash_table_remove(rooms, room_id);	
-	janus_mutex_unlock(&rooms_mutex);
-
-	return 0;
-}
-
-static janus_videoroom * wbx_create_room(const gchar* roomid, const gchar* roomdesc)
-{
-	janus_videoroom *videoroom = g_malloc0(sizeof(janus_videoroom));
-
-	videoroom->acodec[0] = JANUS_AUDIOCODEC_OPUS;
-	videoroom->acodec[1] = JANUS_AUDIOCODEC_NONE;
-	videoroom->acodec[2] = JANUS_AUDIOCODEC_NONE;
-
-	videoroom->vcodec[0] = JANUS_VIDEOCODEC_H264;
-	videoroom->vcodec[1] = JANUS_VIDEOCODEC_NONE;
-	videoroom->vcodec[2] = JANUS_VIDEOCODEC_NONE;
-
-	videoroom->room_id = g_strdup(roomid);
-	
-	char *description = NULL;
-	if(roomdesc != NULL && strlen(roomdesc) > 0)
-		description = g_strdup(roomdesc);
-	else
-		description = g_strdup("no name");
-	videoroom->room_name = description;
-	
-	videoroom->room_secret = g_strdup("adminpwd");
-
-	videoroom->is_private = FALSE;
-	videoroom->require_pvtid = FALSE;
-	videoroom->max_publishers = 1;
-	videoroom->bitrate = 512000;
-	videoroom->bitrate_cap =FALSE;
-	videoroom->fir_freq = 1;
-
-	videoroom->audiolevel_ext = TRUE;
-	videoroom->audiolevel_event = FALSE;
-	videoroom->videoorient_ext = TRUE;
-	videoroom->playoutdelay_ext = TRUE;
-	videoroom->transport_wide_cc_ext = TRUE;
-	videoroom->notify_joining = FALSE;
-
-	g_atomic_int_set(&videoroom->destroyed, 0);
-	janus_mutex_init(&videoroom->mutex);
-	janus_refcount_init(&videoroom->ref, janus_videoroom_room_free);
-	videoroom->participants = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free, (GDestroyNotify)janus_videoroom_publisher_dereference);
-	videoroom->private_ids = g_hash_table_new(NULL, NULL);
-	videoroom->check_allowed = FALSE;
-	videoroom->allowed = g_hash_table_new_full(g_str_hash, g_str_equal, (GDestroyNotify)g_free, NULL);
-
-	char audio_codecs[100], video_codecs[100];
-	janus_videoroom_codecstr(videoroom, audio_codecs, video_codecs, sizeof(audio_codecs), "|");
-	JANUS_LOG(LOG_INFO, "Created videoroom: %s (%s, %s, %s/%s codecs, secret: %s, pin: %s, pvtid: %s)\n",
-		videoroom->room_id, videoroom->room_name,
-		videoroom->is_private ? "private" : "public",
-		audio_codecs, video_codecs,
-		videoroom->room_secret ? videoroom->room_secret : "no secret",
-		videoroom->room_pin ? videoroom->room_pin : "no pin",
-		videoroom->require_pvtid ? "required" : "optional");
-			
-	return videoroom;
-}
-// end wbx 
-
-
 
 /* A host whose ports gets streamed RTP packets of the corresponding type */
 typedef struct janus_videoroom_srtp_context janus_videoroom_srtp_context;
@@ -1959,7 +1735,6 @@ static void janus_videoroom_reqfir(janus_videoroom_publisher *publisher, const c
 #define JANUS_VIDEOROOM_ERROR_INVALID_SDP		437
 #define JANUS_VIDEOROOM_ERROR_DONT_CREATE		8888
 #define JANUS_VIDEOROOM_ERROR_DONT_DESTROY		9999
-
 
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_publisher *p,
 		const gchar *host, int port, int rtcp_port, int pt, uint32_t ssrc,
@@ -7103,3 +6878,223 @@ static void *janus_videoroom_rtp_forwarder_rtcp_thread(void *data) {
 	JANUS_LOG(LOG_VERB, "Leaving RTCP thread for RTP forwarders...\n");
 	return NULL;
 }
+
+
+// willche: wbx struct
+#include <unistd.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+#include <signal.h>
+
+#define MAX_PATH_LEN 512 
+
+typedef struct wbx_ffmpeg_progress {
+	gint64 sdp_sessid;
+	gint64 user_id;
+	pid_t pid;
+} wbx_ffmpeg_progress;
+
+static GHashTable *ffmpegps;
+static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id);
+static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
+static int wbx_check_ffmpeg(const char* room_id);
+static void wbx_print_ffmpegps();
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
+static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
+	
+static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data)
+{
+	wbx_ffmpeg_progress * ffps = (wbx_ffmpeg_progress*) value;
+	guint64* rm_id = (guint64*) key;
+ 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %ld sessionid = %ld\n", *rm_id, ffps->pid, ffps->sdp_sessid);
+}
+
+// print hash table for debug
+static void wbx_print_ffmpegps()
+{
+	g_hash_table_foreach(ffmpegps, wbx_print_ffmpegps_callback, NULL);
+}
+
+// check if a room has ffmpeg progress
+static int wbx_check_ffmpeg(const char * room_id)
+{
+	int ffps = NULL;
+	ffps = g_hash_table_contains(ffmpegps, room_id);	
+	
+	JANUS_LOG(LOG_INFO, "willche in wbx_check_ffmpeg roomid = %ld, findret = %d \n", room_id, ffps);
+
+	return ffps;
+}
+
+// stop a ffmpeg progress
+static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id)
+{
+	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  sid = %lu rid = %lu uid = %lu \n", session_id, room_id, user_id);
+	wbx_ffmpeg_progress * ffps = NULL;
+	ffps = g_hash_table_lookup(ffmpegps, room_id);
+
+	if(ffps == NULL || ffps->user_id != user_id)
+	{
+		return;
+	}
+	
+	kill(ffps->pid, SIGKILL);
+	waitpid(ffps->pid, NULL, 0);
+
+	janus_mutex_lock(&ffmpegps_mutex);
+	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg before remove \n");
+	wbx_print_ffmpegps();
+	g_hash_table_remove(ffmpegps, room_id);
+	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg after remove \n");
+	wbx_print_ffmpegps();
+	janus_mutex_unlock(&ffmpegps_mutex);
+	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg  \n");
+}
+
+// start a ffmpeg progresss
+static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server)
+{
+	// TODO lock.
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %s, videoport = %d, audio-port = %d \n", 
+		session_id, room_id, video_port, audio_port);
+
+	// prepare sdp file
+	if(audio_port) 
+	{
+		system("cp /usr/local/sdp.file /usr/local/sdp/tmp.sdp");
+	}
+	else 
+	{
+		system("cp /usr/local/sdp/sdpna /usr/local/sdp/tmp.sdp");
+	}
+
+	char sedcmd[MAX_PATH_LEN] = {0};
+	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realvport/%d/g' /usr/local/sdp/tmp.sdp", video_port);
+	system(sedcmd);
+	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realaport/%d/g' /usr/local/sdp/tmp.sdp", audio_port);
+	system(sedcmd);
+	
+	pid_t child_pid = 0;
+	child_pid = fork();
+
+	char wh[MAX_PATH_LEN] = "1920x1080";
+	if(width)
+	{
+		snprintf(wh, MAX_PATH_LEN, "%dx%d", width, height);
+	}
+	
+	if(child_pid == 0)
+	{
+		// start ffmpeg
+		char ffmpegcmd[MAX_PATH_LEN] = {0};
+		if(rtmp_server && strlen(rtmp_server) > 0)
+		{
+			snprintf(ffmpegcmd, MAX_PATH_LEN, "%s", rtmp_server);
+		}
+		else 
+		{
+			snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
+		}
+		
+		JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg child process url = %s \n", ffmpegcmd);
+#if 1
+		execl("/usr/local/bin/ffmpeg", "ffmpeg", "-thread_queue_size" ,"512" , "-analyzeduration", "800M", 
+			// "-loglevel", "debug",
+			"-probesize","800M","-protocol_whitelist","file,udp,rtp","-i","/usr/local/sdp/tmp.sdp",
+			"-c:v","h264","-c:a","aac","-ar","16k","-ac","1","-preset","ultrafast","-tune","zerolatency",
+			"-max_muxing_queue_size", "1024","-vcodec","libx264", "-ss", "3", "-framerate", "18", 
+			"-g", "18", "-s", wh, "-f","flv",ffmpegcmd, NULL);
+#endif
+		JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg child process  \n");
+		exit(0);
+	}
+	
+	wbx_ffmpeg_progress * ffps = g_malloc0(sizeof(wbx_ffmpeg_progress));
+	ffps->pid = child_pid;
+	ffps->sdp_sessid = session_id;
+	ffps->user_id = user_id;
+	
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 child pid = %d \n", child_pid);
+	g_hash_table_insert(ffmpegps, g_strdup(room_id), ffps);
+	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
+	wbx_print_ffmpegps();
+	
+	JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg  \n");
+}
+
+// glib hash table for ffmpeg progress value free func
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps) {
+	JANUS_LOG(LOG_INFO, "willche in wbx_ffmpeg_free \n");
+	g_free(ffmpegps);
+	JANUS_LOG(LOG_INFO, "willche out wbx_ffmpeg_free \n");
+}
+
+static int wbx_remove_room(const char* room_id)
+{
+	janus_mutex_lock(&rooms_mutex);
+	g_hash_table_remove(rooms, room_id);	
+	janus_mutex_unlock(&rooms_mutex);
+
+	return 0;
+}
+
+static janus_videoroom * wbx_create_room(const gchar* roomid, const gchar* roomdesc)
+{
+	janus_videoroom *videoroom = g_malloc0(sizeof(janus_videoroom));
+
+	videoroom->acodec[0] = JANUS_AUDIOCODEC_OPUS;
+	videoroom->acodec[1] = JANUS_AUDIOCODEC_NONE;
+	videoroom->acodec[2] = JANUS_AUDIOCODEC_NONE;
+
+	videoroom->vcodec[0] = JANUS_VIDEOCODEC_H264;
+	videoroom->vcodec[1] = JANUS_VIDEOCODEC_NONE;
+	videoroom->vcodec[2] = JANUS_VIDEOCODEC_NONE;
+
+	videoroom->room_id = g_strdup(roomid);
+	
+	char *description = NULL;
+	if(roomdesc != NULL && strlen(roomdesc) > 0)
+		description = g_strdup(roomdesc);
+	else
+		description = g_strdup("no name");
+	videoroom->room_name = description;
+	
+	videoroom->room_secret = g_strdup("adminpwd");
+
+	videoroom->is_private = FALSE;
+	videoroom->require_pvtid = FALSE;
+	videoroom->max_publishers = 1;
+	videoroom->bitrate = 512000;
+	videoroom->bitrate_cap =FALSE;
+	videoroom->fir_freq = 1;
+
+	videoroom->audiolevel_ext = TRUE;
+	videoroom->audiolevel_event = FALSE;
+	videoroom->videoorient_ext = TRUE;
+	videoroom->playoutdelay_ext = TRUE;
+	videoroom->transport_wide_cc_ext = TRUE;
+	videoroom->notify_joining = FALSE;
+
+	g_atomic_int_set(&videoroom->destroyed, 0);
+	janus_mutex_init(&videoroom->mutex);
+	janus_refcount_init(&videoroom->ref, janus_videoroom_room_free);
+	videoroom->participants = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free, (GDestroyNotify)janus_videoroom_publisher_dereference);
+	videoroom->private_ids = g_hash_table_new(NULL, NULL);
+	videoroom->check_allowed = FALSE;
+	videoroom->allowed = g_hash_table_new_full(g_str_hash, g_str_equal, (GDestroyNotify)g_free, NULL);
+
+	char audio_codecs[100], video_codecs[100];
+	janus_videoroom_codecstr(videoroom, audio_codecs, video_codecs, sizeof(audio_codecs), "|");
+	JANUS_LOG(LOG_INFO, "Created videoroom: %s (%s, %s, %s/%s codecs, secret: %s, pin: %s, pvtid: %s)\n",
+		videoroom->room_id, videoroom->room_name,
+		videoroom->is_private ? "private" : "public",
+		audio_codecs, video_codecs,
+		videoroom->room_secret ? videoroom->room_secret : "no secret",
+		videoroom->room_pin ? videoroom->room_pin : "no pin",
+		videoroom->require_pvtid ? "required" : "optional");
+			
+	return videoroom;
+}
+// end wbx 
+
