@@ -3819,6 +3819,7 @@ static gboolean janus_ice_outgoing_stats_handle(gpointer user_data) {
 	return G_SOURCE_CONTINUE;
 }
 
+// willche ice send pkt pop from queued_packets
 static gboolean janus_ice_outgoing_traffic_handle(janus_ice_handle *handle, janus_ice_queued_packet *pkt) {
 	janus_session *session = (janus_session *)handle->session;
 	janus_ice_stream *stream = handle->stream;
@@ -3908,23 +3909,28 @@ static gboolean janus_ice_outgoing_traffic_handle(janus_ice_handle *handle, janu
 				plugin ? plugin->get_package() : NULL, handle->opaque_id);
 		return G_SOURCE_REMOVE;
 	}
+	
 	if(!janus_flags_is_set(&handle->webrtc_flags, JANUS_ICE_HANDLE_WEBRTC_READY)) {
 		janus_ice_free_queued_packet(pkt);
 		return G_SOURCE_CONTINUE;
 	}
+	
 	/* Now let's get on with the packet */
 	if(pkt == NULL)
 		return G_SOURCE_CONTINUE;
+	
 	if(pkt->data == NULL || stream == NULL) {
 		janus_ice_free_queued_packet(pkt);
 		return G_SOURCE_CONTINUE;
 	}
+	
 	gint64 age = (janus_get_monotonic_time() - pkt->added);
 	if(age > G_USEC_PER_SEC) {
 		JANUS_LOG(LOG_WARN, "[%"SCNu64"] Discarding too old outgoing packet (age=%"SCNi64"us)\n", handle->handle_id, age);
 		janus_ice_free_queued_packet(pkt);
 		return G_SOURCE_CONTINUE;
 	}
+	
 	if(!stream->cdone) {
 		if(!janus_flags_is_set(&handle->webrtc_flags, JANUS_ICE_HANDLE_WEBRTC_ALERT) && !stream->noerrorlog) {
 			JANUS_LOG(LOG_ERR, "[%"SCNu64"] No candidates not gathered yet for stream??\n", handle->handle_id);
@@ -3933,6 +3939,7 @@ static gboolean janus_ice_outgoing_traffic_handle(janus_ice_handle *handle, janu
 		janus_ice_free_queued_packet(pkt);
 		return G_SOURCE_CONTINUE;
 	}
+	
 	if(pkt->control) {
 		/* RTCP */
 		int video = (pkt->type == JANUS_ICE_PACKET_VIDEO);
@@ -3946,6 +3953,7 @@ static gboolean janus_ice_outgoing_traffic_handle(janus_ice_handle *handle, janu
 			janus_ice_free_queued_packet(pkt);
 			return G_SOURCE_CONTINUE;
 		}
+		
 		component->noerrorlog = FALSE;
 		if(pkt->encrypted) {
 			/* Already SRTCP */
