@@ -1338,8 +1338,24 @@ static char *admin_key = NULL;
 static gboolean lock_rtpfwd = FALSE;
 
 
+// wilche start wbx
 static GHashTable *ffmpegps;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+#define MAX_PATH_LEN 512 
+
+typedef struct wbx_ffmpeg_progress {
+	gint64 sdp_sessid;
+	gint64 user_id;
+	pid_t pid;
+} wbx_ffmpeg_progress;
+
+static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id);
+static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
+static int wbx_check_ffmpeg(const char* room_id);
+static void wbx_print_ffmpegps();
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
+static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
+// end wxs
 
 
 typedef struct janus_videoroom_session {
@@ -6890,21 +6906,6 @@ static void *janus_videoroom_rtp_forwarder_rtcp_thread(void *data) {
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <signal.h>
-
-#define MAX_PATH_LEN 512 
-
-typedef struct wbx_ffmpeg_progress {
-	gint64 sdp_sessid;
-	gint64 user_id;
-	pid_t pid;
-} wbx_ffmpeg_progress;
-
-static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id);
-static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server);
-static int wbx_check_ffmpeg(const char* room_id);
-static void wbx_print_ffmpegps();
-static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
-static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
 	
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data)
 {
