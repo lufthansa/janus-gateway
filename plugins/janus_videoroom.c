@@ -1355,6 +1355,9 @@ static int wbx_check_ffmpeg(const char* room_id);
 static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
+static int wbx_remove_room(const char* room_id);
+static janus_videoroom * wbx_create_room(const char* roomid, const char* roomdesc);
+
 // end wxs
 
 
