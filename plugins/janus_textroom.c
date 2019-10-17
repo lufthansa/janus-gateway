@@ -591,7 +591,7 @@ static struct janus_json_parameter kick_parameters[] = {
 	{"username", JSON_STRING, JANUS_JSON_PARAM_REQUIRED}
 };
 static struct janus_json_parameter join_parameters[] = {
-	{"room", JSON_STRING, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_NONEMPTY},
+	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
 	{"username", JSON_STRING, JANUS_JSON_PARAM_REQUIRED},
 	{"pin", JSON_STRING, 0},
 	{"display", JSON_STRING, 0}
