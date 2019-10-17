@@ -4283,6 +4283,24 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			|| !strcasecmp(request_text, "configure") || !strcasecmp(request_text, "publish") || !strcasecmp(request_text, "unpublish")
 			|| !strcasecmp(request_text, "start") || !strcasecmp(request_text, "pause") || !strcasecmp(request_text, "switch")
 			|| !strcasecmp(request_text, "leave")) {
+
+		// willche check room_id, return error before asy handle
+		if(!strcasecmp(request_text, "join"))
+		{
+			json_t *room = json_object_get(root, "room");
+			if(room == 0)
+			{
+				error_code = JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT;
+				goto plugin_response;
+			}
+			const char * room_id = json_string_value(room);
+			if(room_id == 0)
+			{
+				error_code = JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT;
+				goto plugin_response;
+			}
+		}
+			
 		/* These messages are handled asynchronously */
 
 		janus_videoroom_message *msg = g_malloc(sizeof(janus_videoroom_message));
@@ -5157,7 +5175,7 @@ static void *janus_videoroom_handler(void *data) {
 		json_t *event = NULL;
 		gboolean sdp_update = FALSE;
 
-		JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler text = %s\n", request_text);		
+		JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler text = %s\n", request_text);
 
 		if(json_object_get(msg->jsep, "update") != NULL)
 			sdp_update = json_is_true(json_object_get(msg->jsep, "update"));
@@ -5180,7 +5198,12 @@ static void *janus_videoroom_handler(void *data) {
 
 			// willche create room
 			json_t *room = json_object_get(root, "room");
+			if(room == 0)
+				goto error;
 			const char * room_id = json_string_value(room);
+			JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler room_id = %s\n", room_id);
+			if(room == 0)
+				goto error;
 			videoroom = g_hash_table_lookup(rooms, room_id);
 			if(videoroom) 
 			{
