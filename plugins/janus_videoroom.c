@@ -1357,6 +1357,8 @@ static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
 static int wbx_remove_room(const char* room_id);
 static janus_videoroom * wbx_create_room(const char* roomid, const char* roomdesc);
+static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
+static void wbx_print_rooms();
 
 // end wxs
 
@@ -5205,13 +5207,16 @@ static void *janus_videoroom_handler(void *data) {
 			JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler room_id = %s\n", room_id);
 			if(room == 0)
 				goto error;
+			wbx_print_rooms();
 			videoroom = g_hash_table_lookup(rooms, room_id);
 			if(videoroom) 
 			{
+				JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler room_id = %s already exist\n", room_id);
 				goto error;
 			}
 			videoroom = wbx_create_room(room_id, room_id);
 			g_hash_table_insert(rooms, strdup(room_id), videoroom);
+			// willche end create rooms
 			
 			error_code = janus_videoroom_access_room(root, FALSE, TRUE, &videoroom, error_cause, sizeof(error_cause));
 			if(error_code != 0) {
@@ -6933,12 +6938,26 @@ static void *janus_videoroom_rtp_forwarder_rtcp_thread(void *data) {
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <signal.h>
-	
+
+static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data)
+{
+	janus_videoroom * jvm = (janus_videoroom*) value;
+	gchar* room_id = (gchar*) key;
+ 	JANUS_LOG(LOG_INFO, "willche in wbx_print_rooms_callback roomid = %s, roomname = %s\n", room_id, jvm->room_name);
+}
+
+// print hash table for debug
+static void wbx_print_rooms()
+{
+	g_hash_table_foreach(rooms, wbx_print_rooms_callback, NULL);
+}
+
+
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data)
 {
 	wbx_ffmpeg_progress * ffps = (wbx_ffmpeg_progress*) value;
-	guint64* rm_id = (guint64*) key;
- 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %ld, pid = %ld sessionid = %ld\n", *rm_id, ffps->pid, ffps->sdp_sessid);
+	gchar* room_id = (gchar*) key;
+ 	JANUS_LOG(LOG_INFO, "willche in wbx_print_ffmpegps roomid = %s, pid = %ld sessionid = %ld\n", room_id, ffps->pid, ffps->sdp_sessid);
 }
 
 // print hash table for debug
