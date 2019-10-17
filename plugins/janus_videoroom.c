@@ -1356,7 +1356,7 @@ static void wbx_print_ffmpegps();
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
 static int wbx_remove_room(const char* room_id);
-static janus_videoroom * wbx_create_room(const char* roomid, const char* roomdesc);
+static janus_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
 static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
 static void wbx_print_rooms();
 
@@ -6943,7 +6943,7 @@ static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data
 {
 	janus_videoroom * jvm = (janus_videoroom*) value;
 	gchar* room_id = (gchar*) key;
- 	JANUS_LOG(LOG_INFO, "willche in wbx_print_rooms_callback roomid = %s, roomname = %s\n", room_id, jvm->room_name);
+ 	JANUS_LOG(LOG_INFO, "willche in wbx_print_rooms_callback room_id = %s, roomname = %s\n", room_id, jvm->room_name);
 }
 
 // print hash table for debug
@@ -6999,6 +6999,9 @@ static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 use
 	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg after remove \n");
 	wbx_print_ffmpegps();
 	janus_mutex_unlock(&ffmpegps_mutex);
+
+	wbx_remove_room(room_id);
+	
 	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg  \n");
 }
 
@@ -7082,15 +7085,17 @@ static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps) {
 
 static int wbx_remove_room(const char* room_id)
 {
+	JANUS_LOG(LOG_INFO, "willche in wbx_remove_room room_id = %s thread id = %ul \n", room_id, pthread_self());
 	janus_mutex_lock(&rooms_mutex);
-	g_hash_table_remove(rooms, room_id);	
+	g_hash_table_remove(rooms, room_id);
 	janus_mutex_unlock(&rooms_mutex);
 
 	return 0;
 }
 
-static janus_videoroom * wbx_create_room(const gchar* roomid, const gchar* roomdesc)
+static janus_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomdesc)
 {
+	JANUS_LOG(LOG_INFO, "willche in wbx_create_room room id = %s \n", room_id);
 	janus_videoroom *videoroom = g_malloc0(sizeof(janus_videoroom));
 
 	videoroom->acodec[0] = JANUS_AUDIOCODEC_OPUS;
@@ -7101,7 +7106,7 @@ static janus_videoroom * wbx_create_room(const gchar* roomid, const gchar* roomd
 	videoroom->vcodec[1] = JANUS_VIDEOCODEC_NONE;
 	videoroom->vcodec[2] = JANUS_VIDEOCODEC_NONE;
 
-	videoroom->room_id = g_strdup(roomid);
+	videoroom->room_id = g_strdup(room_id);
 	
 	char *description = NULL;
 	if(roomdesc != NULL && strlen(roomdesc) > 0)
