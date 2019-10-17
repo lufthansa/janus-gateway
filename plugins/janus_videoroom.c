@@ -3410,14 +3410,14 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		}
 		json_t *room = json_object_get(root, "room");
 
-		guint64 room_id = json_integer_value(room);
+		const char* room_id = json_string_value(room);
 
 		// TODO: lock
 		if(wbx_check_ffmpeg(room_id))
 		{
-			JANUS_LOG(LOG_ERR, "room %lu has started a ffmpeg progress \n", room_id);
+			JANUS_LOG(LOG_ERR, "room %s has started a ffmpeg progress \n", room_id);
 			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
-			g_snprintf(error_cause, 512, "room %lu has started a ffmpeg progress", room_id);
+			g_snprintf(error_cause, 512, "room %s has started a ffmpeg progress", room_id);
 			goto prepare_response;
 		}
 		
@@ -3571,7 +3571,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			if(notify_events && gateway->events_is_enabled()) {
 				json_t *info = json_object();
 				json_object_set_new(info, "event", json_string("rtp_forward"));
-				json_object_set_new(info, "room", json_integer(room_id));
+				json_object_set_new(info, "room", json_string(room_id));
 				json_object_set_new(info, "publisher_id", json_integer(publisher_id));
 				json_object_set_new(info, "media", json_string("audio"));
 				json_object_set_new(info, "stream_id", json_integer(audio_handle));
@@ -3590,7 +3590,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 				if(notify_events && gateway->events_is_enabled()) {
 					json_t *info = json_object();
 					json_object_set_new(info, "event", json_string("rtp_forward"));
-					json_object_set_new(info, "room", json_integer(room_id));
+					json_object_set_new(info, "room", json_string(room_id));
 					json_object_set_new(info, "publisher_id", json_integer(publisher_id));
 					json_object_set_new(info, "media", json_string("video"));
 					if(video_handle[1] > 0 || video_handle[2] > 0)
@@ -3608,7 +3608,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 				if(notify_events && gateway->events_is_enabled()) {
 					json_t *info = json_object();
 					json_object_set_new(info, "event", json_string("rtp_forward"));
-					json_object_set_new(info, "room", json_integer(room_id));
+					json_object_set_new(info, "room", json_string(room_id));
 					json_object_set_new(info, "publisher_id", json_integer(publisher_id));
 					json_object_set_new(info, "media", json_string("video"));
 					json_object_set_new(info, "video_substream", json_integer(1));
@@ -3625,7 +3625,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 				if(notify_events && gateway->events_is_enabled()) {
 					json_t *info = json_object();
 					json_object_set_new(info, "event", json_string("rtp_forward"));
-					json_object_set_new(info, "room", json_integer(room_id));
+					json_object_set_new(info, "room", json_string(room_id));
 					json_object_set_new(info, "publisher_id", json_integer(publisher_id));
 					json_object_set_new(info, "media", json_string("video"));
 					json_object_set_new(info, "video_substream", json_integer(2));
@@ -3643,7 +3643,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			if(notify_events && gateway->events_is_enabled()) {
 				json_t *info = json_object();
 				json_object_set_new(info, "event", json_string("rtp_forward"));
-				json_object_set_new(info, "room", json_integer(room_id));
+				json_object_set_new(info, "room", json_string(room_id));
 				json_object_set_new(info, "publisher_id", json_integer(publisher_id));
 				json_object_set_new(info, "media", json_string("data"));
 				json_object_set_new(info, "stream_id", json_integer(data_handle));
@@ -3658,7 +3658,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(rtp_stream, "host", json_string(host));
 		json_object_set_new(response, "publisher_id", json_integer(publisher_id));
 		json_object_set_new(response, "rtp_stream", rtp_stream);
-		json_object_set_new(response, "room", json_integer(room_id));
+		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "videoroom", json_string("rtp_forward"));
 
 		// willche if no error, start ffmpeg rtp->rtmp shell
@@ -3691,9 +3691,9 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		}
 		else
 		{
-			JANUS_LOG(LOG_ERR, "room %lu has started a ffmpeg progress \n", room_id);
+			JANUS_LOG(LOG_ERR, "room %s has started a ffmpeg progress \n", room_id);
 			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
-			g_snprintf(error_cause, 512, "room %lu has started a ffmpeg progress", room_id);
+			g_snprintf(error_cause, 512, "room %s has started a ffmpeg progress", room_id);
 			janus_mutex_unlock(&ffmpegps_mutex);
 			goto prepare_response;
 		}
@@ -3723,7 +3723,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_t *pub_id = json_object_get(root, "publisher_id");
 		json_t *id = json_object_get(root, "stream_id");
 
-		guint64 room_id = json_integer_value(room);
+		const char* room_id = json_string_value(room);
 		guint64 publisher_id = json_integer_value(pub_id);
 		guint32 stream_id = json_integer_value(id);
 		janus_mutex_lock(&rooms_mutex);
@@ -3761,14 +3761,14 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		janus_refcount_decrease(&videoroom->ref);
 		response = json_object();
 		json_object_set_new(response, "videoroom", json_string("stop_rtp_forward"));
-		json_object_set_new(response, "room", json_integer(room_id));
+		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "publisher_id", json_integer(publisher_id));
 		json_object_set_new(response, "stream_id", json_integer(stream_id));
 		/* Also notify event handlers */
 		if(notify_events && gateway->events_is_enabled()) {
 			json_t *info = json_object();
 			json_object_set_new(info, "event", json_string("stop_rtp_forward"));
-			json_object_set_new(info, "room", json_integer(room_id));
+			json_object_set_new(info, "room", json_string(room_id));
 			json_object_set_new(info, "publisher_id", json_integer(publisher_id));
 			json_object_set_new(info, "stream_id", json_integer(stream_id));
 			gateway->notify_event(&janus_videoroom_plugin, NULL, info);
@@ -3782,13 +3782,13 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		if(error_code != 0)
 			goto prepare_response;
 		json_t *room = json_object_get(root, "room");
-		guint64 room_id = json_integer_value(room);
+		const char * room_id = json_string_value(room);
 		janus_mutex_lock(&rooms_mutex);
-		gboolean room_exists = g_hash_table_contains(rooms, &room_id);
+		gboolean room_exists = g_hash_table_contains(rooms, room_id);
 		janus_mutex_unlock(&rooms_mutex);
 		response = json_object();
 		json_object_set_new(response, "videoroom", json_string("success"));
-		json_object_set_new(response, "room", json_integer(room_id));
+		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "exists", room_exists ? json_true() : json_false());
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "allowed")) {
@@ -3809,7 +3809,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			g_snprintf(error_cause, 512, "Unsupported action '%s' (allowed)", action_text);
 			goto prepare_response;
 		}
-		guint64 room_id = json_integer_value(room);
+		const char* room_id = json_string_value(room);
 		janus_mutex_lock(&rooms_mutex);
 		janus_videoroom *videoroom = NULL;
 		error_code = janus_videoroom_access_room(root, TRUE, FALSE, &videoroom, error_cause, sizeof(error_cause));
@@ -3827,10 +3827,10 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			goto prepare_response;
 		}
 		if(!strcasecmp(action_text, "enable")) {
-			JANUS_LOG(LOG_VERB, "Enabling the check on allowed authorization tokens for room %"SCNu64"\n", room_id);
+			JANUS_LOG(LOG_VERB, "Enabling the check on allowed authorization tokens for room %s\n", room_id);
 			videoroom->check_allowed = TRUE;
 		} else if(!strcasecmp(action_text, "disable")) {
-			JANUS_LOG(LOG_VERB, "Disabling the check on allowed authorization tokens for room %"SCNu64" (free entry)\n", room_id);
+			JANUS_LOG(LOG_VERB, "Disabling the check on allowed authorization tokens for room %s (free entry)\n", room_id);
 			videoroom->check_allowed = FALSE;
 		} else {
 			gboolean add = !strcasecmp(action_text, "add");
@@ -3869,7 +3869,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		/* Prepare response */
 		response = json_object();
 		json_object_set_new(response, "videoroom", json_string("success"));
-		json_object_set_new(response, "room", json_integer(videoroom->room_id));
+		json_object_set_new(response, "room", json_string(videoroom->room_id));
 		json_t *list = json_array();
 		if(strcasecmp(action_text, "disable")) {
 			if(g_hash_table_size(videoroom->allowed) > 0) {
@@ -3896,7 +3896,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			goto prepare_response;
 		json_t *room = json_object_get(root, "room");
 		json_t *id = json_object_get(root, "id");
-		guint64 room_id = json_integer_value(room);
+		const char* room_id = json_string_value(room);
 		janus_mutex_lock(&rooms_mutex);
 		janus_videoroom *videoroom = NULL;
 		error_code = janus_videoroom_access_room(root, TRUE, FALSE, &videoroom, error_cause, sizeof(error_cause));
@@ -3920,9 +3920,9 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		if(participant == NULL) {
 			janus_mutex_unlock(&videoroom->mutex);
 			janus_refcount_decrease(&videoroom->ref);
-			JANUS_LOG(LOG_ERR, "No such user %"SCNu64" in room %"SCNu64"\n", user_id, room_id);
+			JANUS_LOG(LOG_ERR, "No such user %"SCNu64" in room %s\n", user_id, room_id);
 			error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_FEED;
-			g_snprintf(error_cause, 512, "No such user %"SCNu64" in room %"SCNu64, user_id, room_id);
+			g_snprintf(error_cause, 512, "No such user %"SCNu64" in room %s", user_id, room_id);
 			goto prepare_response;
 		}
 		if(participant->kicked) {
@@ -3942,7 +3942,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		/* Prepare an event for this */
 		json_t *kicked = json_object();
 		json_object_set_new(kicked, "videoroom", json_string("event"));
-		json_object_set_new(kicked, "room", json_integer(participant->room_id));
+		json_object_set_new(kicked, "room", json_string(participant->room_id));
 		json_object_set_new(kicked, "leaving", json_string("ok"));
 		json_object_set_new(kicked, "reason", json_string("kicked"));
 		int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
@@ -3973,7 +3973,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		/* Tell the core to tear down the PeerConnection, hangup_media will do the rest */
 		if(participant && participant->session)
 			gateway->close_pc(participant->session->handle);
-		JANUS_LOG(LOG_INFO, "Kicked user %"SCNu64" from room %"SCNu64"\n", user_id, room_id);
+		JANUS_LOG(LOG_INFO, "Kicked user %"SCNu64" from room %s\n", user_id, room_id);
 		/* Prepare response */
 		response = json_object();
 		json_object_set_new(response, "videoroom", json_string("success"));
@@ -3988,7 +3988,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		if(error_code != 0)
 			goto prepare_response;
 		json_t *room = json_object_get(root, "room");
-		guint64 room_id = json_integer_value(room);
+		const char* room_id = json_string_value(room);
 		janus_mutex_lock(&rooms_mutex);
 		janus_videoroom *videoroom = NULL;
 		error_code = janus_videoroom_access_room(root, FALSE, FALSE, &videoroom, error_cause, sizeof(error_cause));
@@ -4019,7 +4019,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		janus_refcount_decrease(&videoroom->ref);
 		response = json_object();
 		json_object_set_new(response, "videoroom", json_string("participants"));
-		json_object_set_new(response, "room", json_integer(room_id));
+		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "participants", list);
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "listforwarders")) {
@@ -4120,7 +4120,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		janus_mutex_unlock(&rooms_mutex);
 		response = json_object();
 		json_object_set_new(response, "videoroom", json_string("forwarders"));
-		json_object_set_new(response, "room", json_integer(room_id));
+		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "rtp_forwarders", list);
 		goto prepare_response;
 	} else {
