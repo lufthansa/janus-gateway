@@ -7065,23 +7065,27 @@ static void wbx_return_port(int index)
 	{
 		g_queue_remove(wbx_used_port, real_index);
 		wbx_publisher_count--;
-	}
 
-	if(wbx_publisher_count != g_queue_get_length(wbx_used_port))
-	{
-		JANUS_LOG(LOG_ERR, "willche in wbx_return_port two count not equal\n");
-	}
-	
-	GList* gl = g_queue_find(wbx_free_port, real_index);
-	if(gl == NULL)
-	{
-		g_queue_push_tail(wbx_free_port, real_index);
+		if(wbx_publisher_count != g_queue_get_length(wbx_used_port))
+		{
+			JANUS_LOG(LOG_ERR, "willche in wbx_return_port two count not equal\n");
+		}
+		
+		GList* gl = g_queue_find(wbx_free_port, real_index);
+		if(gl == NULL)
+		{
+			g_queue_push_tail(wbx_free_port, real_index);
+		}
+		else
+		{
+	 		JANUS_LOG(LOG_ERR, "willche in wbx_return_port port %d already free\n", index);
+		}
 	}
 	else
 	{
- 		JANUS_LOG(LOG_ERR, "willche in wbx_return_port port %d already free\n", index);
+		JANUS_LOG(LOG_ERR, "willche in wbx_return_port index %d not in used queue\n", index);
 	}
-
+	
 	wbx_display_int_queue(wbx_free_port, "wbx_free_port");	
 	wbx_display_int_queue(wbx_used_port, "wbx_used_port");
 	
