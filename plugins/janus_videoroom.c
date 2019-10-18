@@ -1349,6 +1349,7 @@ static int wbx_publisher_count = 100;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
 static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
 #define MAX_PATH_LEN 512 
+static int wbx_port_map[wbx_publisher_max_count];
 
 typedef struct wbx_ffmpeg_progress {
 	gint64 sdp_sessid;
@@ -1360,7 +1361,7 @@ typedef struct wbx_ffmpeg_progress {
 static void wbx_init();
 static int wbx_get_port();
 static int wbx_retrun_port(int index);
-static int wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, bool return_port);
+static int wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, gboolean return_port);
 static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server, int port_index);
 static int wbx_check_ffmpeg(const char* room_id);
 static void wbx_print_ffmpegps();
@@ -1370,7 +1371,6 @@ static int wbx_remove_room(const char* room_id);
 static janus_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
 static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
 static void wbx_print_rooms();
-
 // end wxs
 
 
@@ -4219,7 +4219,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 							if(port_index == -1)
 							{
 								JANUS_LOG(LOG_ERR, "willche in janus_videoroom_process_synchronous_request configure no port\n");
-								return NULL:
+								return NULL;
 							}
 
 							video_port = wbx_publisher_port_start + port_index * wbx_publisher_port_step;
@@ -6994,7 +6994,7 @@ static void wbx_display_int_queue(GQueue *queue, const char *qname)
 
     for (i = 0; i < len; i++) {
 		int * v = (int*)g_queue_peek_nth(queue, i);
-        JANUS_LOG(LOG_INFO, "in wbx_display_int_queue %s index %d, value = %d", qname, i, *v);
+        JANUS_LOG(LOG_INFO, "in wbx_display_int_queue %s index %d, value = %d\n", qname, i, *v);
     }
 }
 
@@ -7007,7 +7007,8 @@ static void wbx_init()
 
 	for(i = 0; i < wbx_publisher_max_count; i++)
 	{
-		g_queue_push_tail(wbx_free_port, &i);
+		wbx_port_map[i] = i;
+		g_queue_push_tail(wbx_free_port, &(wbx_port_map[i]));
 	}
 
 	wbx_display_int_queue(wbx_free_port, "wbx_free_port");
@@ -7111,7 +7112,7 @@ static int wbx_check_ffmpeg(const char * room_id)
 
 // stop a ffmpeg progress
 // if client change width and heigth, don`t return port
-static int wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, bool return_port)
+static int wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, gboolean return_port)
 {
 	int port_index = -1;
 	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  sid = %lu rid = %lu uid = %lu \n", session_id, room_id, user_id);
