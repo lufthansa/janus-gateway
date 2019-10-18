@@ -7048,18 +7048,34 @@ static void wbx_return_port(int index)
 
 	janus_mutex_lock(&wbx_port_mutex);
 
-	g_queue_remove(wbx_used_port, &index);
-	wbx_publisher_count--;
+	int * real_index = 0;
+
+	int i = 0;
+	for(; i < g_queue_get_length(wbx_used_port); i++)
+	{
+		int * v = (int*)g_queue_peek_nth(wbx_used_port, i);
+		if(*v == index)
+		{
+			real_index = v;
+			break;
+		}
+	}
+
+	if(real_index)
+	{
+		g_queue_remove(wbx_used_port, real_index);
+		wbx_publisher_count--;
+	}
 
 	if(wbx_publisher_count != g_queue_get_length(wbx_used_port))
 	{
 		JANUS_LOG(LOG_ERR, "willche in wbx_return_port two count not equal\n");
 	}
 	
-	GList* gl = g_queue_find(wbx_free_port, &index);
+	GList* gl = g_queue_find(wbx_free_port, real_index);
 	if(gl == NULL)
 	{
-		g_queue_push_tail(wbx_used_port, &index);
+		g_queue_push_tail(wbx_used_port, real_index);
 	}
 	else
 	{
