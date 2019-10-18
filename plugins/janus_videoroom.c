@@ -1344,8 +1344,8 @@ static GQueue  *wbx_used_port;
 static GQueue  *wbx_free_port;
 static const int wbx_publisher_port_start = 40000;
 static const int wbx_publisher_port_step = 10;
-static const int wbx_publisher_max_count = 100;
-static int wbx_publisher_count = 100;
+#define wbx_publisher_max_count 100
+static int wbx_publisher_count = 0;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
 static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
 #define MAX_PATH_LEN 512 
