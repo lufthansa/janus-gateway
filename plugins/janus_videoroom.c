@@ -1340,13 +1340,21 @@ static gboolean lock_rtpfwd = FALSE;
 
 // wilche start wbx
 static GHashTable *ffmpegps;
+static GQueue  *wbx_used_port;
+static GQueue  *wbx_free_port;
+static const int wbx_publisher_port_start = 40000;
+static const int wbx_publisher_port_step = 10;
+static const int wbx_publisher_max_count = 100;
+static int wbx_publisher_count = 100;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
 #define MAX_PATH_LEN 512 
 
 typedef struct wbx_ffmpeg_progress {
 	gint64 sdp_sessid;
 	gint64 user_id;
 	pid_t pid;
+	int port_index;
 } wbx_ffmpeg_progress;
 
 static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id);
@@ -1759,6 +1767,7 @@ static void janus_videoroom_reqfir(janus_videoroom_publisher *publisher, const c
 #define JANUS_VIDEOROOM_ERROR_NOT_PUBLISHED		435
 #define JANUS_VIDEOROOM_ERROR_ID_EXISTS			436
 #define JANUS_VIDEOROOM_ERROR_INVALID_SDP		437
+#define JANUS_VIDEOROOM_ERROR_PUB_PORT_OUT		438
 #define JANUS_VIDEOROOM_ERROR_DONT_CREATE		8888
 #define JANUS_VIDEOROOM_ERROR_DONT_DESTROY		9999
 
@@ -3393,6 +3402,15 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 		json_object_set_new(response, "list", list);
 		goto prepare_response;
 	} else if(!strcasecmp(request_text, "rtp_forward")) {
+
+		int port_index = wbx_get_port();
+		if(port_index < 0)
+		{
+			JANUS_LOG(LOG_ERR, "janus_videoroom_process_synchronous_request rnot enough port\n");
+			error_code = JANUS_VIDEOROOM_ERROR_PUB_PORT_OUT;
+			snprintf(error_cause, 100, "publisher port empty");
+			goto prepare_response;
+		}
 
 		JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
 			error_code, error_cause, TRUE,
@@ -5205,7 +5223,7 @@ static void *janus_videoroom_handler(void *data) {
 				goto error;
 			const char * room_id = json_string_value(room);
 			JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler room_id = %s\n", room_id);
-			if(room == 0)
+			if(room_id == 0)
 				goto error;
 			wbx_print_rooms();
 			videoroom = g_hash_table_lookup(rooms, room_id);
@@ -6939,6 +6957,89 @@ static void *janus_videoroom_rtp_forwarder_rtcp_thread(void *data) {
 #include <stdlib.h>
 #include <signal.h>
 
+void wbx_display_int_queue(GQueue *queue, const char *qname)
+{
+    int len = g_queue_get_length(queue);
+    int i = 0;
+
+    for (i = 0; i < len; i++) {
+		int * v = (int*)g_queue_peek_nth(queue, i);
+        JANUS_LOG(LOG_INFO, "in wbx_display_int_queue %s index %d, value = %d", qname, i, *v);
+    }
+}
+
+static void wbx_init()
+{
+	wbx_used_port = g_queue_new();
+	wbx_free_port = g_queue_new();
+	janus_mutex_init(&wbx_port_mutex);
+
+	for(int i = 0; i < wbx_publisher_max_count; i++)
+	{
+		g_queue_push_tail(wbx_free_port, &i);
+	}
+
+	wbx_display_int_queue(wbx_free_port, "wbx_free_port");
+}
+
+static int wbx_get_port()
+{
+	int start_port = -1;
+	janus_mutex_lock(&wbx_port_mutex);
+
+	if(wbx_publisher_count < wbx_publisher_max_count)
+	{
+		int* fp = (int*)g_queue_pop_tail(wbx_free_port);
+		g_queue_push_tail(wbx_used_port, fp);
+		wbx_publisher_count++;
+	
+		start_port = (*fp);
+		JANUS_LOG(LOG_INFO, "willche in wbx_get_port %d \n", start_port);
+	}
+
+	if(wbx_publisher_count != g_queue_get_length(wbx_used_port))
+	{
+		JANUS_LOG(LOG_ERR, "willche in wbx_get_port two count not equal\n");
+	}
+		
+	wbx_display_int_queue(wbx_free_port, "wbx_free_port");	
+	wbx_display_int_queue(wbx_used_port, "wbx_used_port");
+
+	janus_mutex_unlock(&wbx_port_mutex);
+	
+	return start_port;
+}
+
+static void wbx_free_port(int index)
+{
+	JANUS_LOG(LOG_INFO, "willche in wbx_free_port %d \n", index);
+
+	janus_mutex_lock(&wbx_port_mutex);
+
+	g_queue_remove(wbx_used_port, &index);
+	wbx_publisher_count--;
+
+	if(wbx_publisher_count != g_queue_get_length(wbx_used_port))
+	{
+		JANUS_LOG(LOG_ERR, "willche in wbx_free_port two count not equal\n");
+	}
+	
+	Glist* gl = g_queue_find(wbx_free_port, &index);
+	if(gl == NULL)
+	{
+		g_queue_push_tail(wbx_used_port, &index);
+	}
+	else
+	{
+ 		JANUS_LOG(LOG_ERR, "willche in wbx_free_port port %d already free\n", index);
+	}
+
+	wbx_display_int_queue(wbx_free_port, "wbx_free_port");	
+	wbx_display_int_queue(wbx_used_port, "wbx_used_port");
+	
+	janus_mutex_unlock(&wbx_port_mutex);
+}
+
 static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data)
 {
 	janus_videoroom * jvm = (janus_videoroom*) value;
@@ -6986,11 +7087,14 @@ static void wbx_kill_ffmpeg(guint64 session_id, const char* room_id, guint64 use
 
 	if(ffps == NULL || ffps->user_id != user_id)
 	{
+		JANUS_LOG(LOG_ERR, "willche in wbx_kill_ffmpeg error sid = %lu rid = %lu uid = %lu \n", session_id, room_id, user_id);
 		return;
 	}
 	
 	kill(ffps->pid, SIGKILL);
 	waitpid(ffps->pid, NULL, 0);
+
+	wbx_free_port(ffps->port_index);
 
 	janus_mutex_lock(&ffmpegps_mutex);
 	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg before remove \n");
@@ -7023,9 +7127,9 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	}
 
 	char sedcmd[MAX_PATH_LEN] = {0};
-	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realvport/%d/g' /usr/local/sdp/tmp.sdp", video_port);
+	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realvport/%d/g' /usr/local/sdp/tmp.sdp", wbx_publisher_port_start + port_index * wbx_publisher_port_step);
 	system(sedcmd);
-	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realaport/%d/g' /usr/local/sdp/tmp.sdp", audio_port);
+	snprintf(sedcmd, MAX_PATH_LEN, "sed -i 's/realaport/%d/g' /usr/local/sdp/tmp.sdp", wbx_publisher_port_start + port_index * wbx_publisher_port_step + wbx_publisher_port_step / 2);
 	system(sedcmd);
 	
 	pid_t child_pid = 0;
@@ -7067,6 +7171,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	ffps->pid = child_pid;
 	ffps->sdp_sessid = session_id;
 	ffps->user_id = user_id;
+	ffps->port_index = port_index;
 	
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 00000 child pid = %d \n", child_pid);
 	g_hash_table_insert(ffmpegps, g_strdup(room_id), ffps);
