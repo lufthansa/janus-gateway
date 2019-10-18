@@ -7075,7 +7075,7 @@ static void wbx_return_port(int index)
 	GList* gl = g_queue_find(wbx_free_port, real_index);
 	if(gl == NULL)
 	{
-		g_queue_push_tail(wbx_used_port, real_index);
+		g_queue_push_tail(wbx_free_port, real_index);
 	}
 	else
 	{
