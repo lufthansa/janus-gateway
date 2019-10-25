@@ -8,7 +8,7 @@
 #include "../rtp.h"
 
 int janus_log_level = LOG_NONE;
-gboolean janus_log_timestamps = FALSE;
+gboolean janus_log_timestamps = TRUE;
 gboolean janus_log_colors = FALSE;
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {

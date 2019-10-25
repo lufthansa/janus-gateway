@@ -8,7 +8,7 @@
 #include "../sdp-utils.h"
 
 int janus_log_level = LOG_NONE;
-gboolean janus_log_timestamps = FALSE;
+gboolean janus_log_timestamps = TRUE;
 gboolean janus_log_colors = FALSE;
 int refcount_debug = 0;
 

@@ -1373,6 +1373,17 @@ static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data
 static void wbx_print_rooms();
 // end wxs
 
+// ffmpeg
+#include <libavformat/avformat.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/time.h>
+
+// TODO: 根据roomid扩展
+AVFormatContext* output_format_context = NULL;
+
+void ffmpeg_prepare(gchar* room_id);
+int ffmpeg_push_stream(AVPacket* pkt);
+// end ffmpeg
 
 typedef struct janus_videoroom_session {
 	janus_plugin_session *handle;
@@ -3722,7 +3733,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			{
 				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, NULL, port_index);
 			}
-
+            ffmpeg_prepare(room_id);
 		}
 		else
 		{
@@ -4774,12 +4785,15 @@ void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char 
 				if(payload == NULL)
 					return;
 				if(participant->vcodec == JANUS_VIDEOCODEC_VP8) {
+					JANUS_LOG(LOG_FATAL, "codec vp8\n");
 					if(janus_vp8_is_keyframe(payload, plen))
 						participant->fir_latest = now;
 				} else if(participant->vcodec == JANUS_VIDEOCODEC_VP9) {
+					JANUS_LOG(LOG_FATAL, "codec vp9\n");
 					if(janus_vp9_is_keyframe(payload, plen))
 						participant->fir_latest = now;
 				} else if(participant->vcodec == JANUS_VIDEOCODEC_H264) {
+					JANUS_LOG(LOG_FATAL, "codec h264\n");
 					if(janus_h264_is_keyframe(payload, plen))
 						participant->fir_latest = now;
 				}
@@ -4789,7 +4803,20 @@ void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char 
 				}
 			}
 		}
+
+        {
+            // ffmpeg push stream to ngnix
+            AVPacket pkt;
+            av_init_packet(&pkt);
+            //TODO:组装pkt
+            pkt.data = buf;
+            pkt.size = len;
+            pkt.pts = packet.timestamp;
+            pkt.dts = packet.timestamp;
+            ffmpeg_push_stream(&pkt);
+        }
 	}
+
 	janus_videoroom_publisher_dereference_nodebug(participant);
 }
 
@@ -7177,6 +7204,8 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %s, videoport = %d, audio-port = %d \n", 
 		session_id, room_id, video_port, audio_port);
 
+    return;
+
 	// prepare sdp file
 	if(audio_port) 
 	{
@@ -7319,3 +7348,24 @@ static janus_videoroom * wbx_create_room(const gchar* room_id, const gchar* room
 }
 // end wbx 
 
+// ffmepg
+void ffmpeg_prepare(gchar* room_id) {
+    avcodec_register_all();
+    avformat_network_init();
+    
+    gchar server_addr[512] = {0};
+    g_snprintf(server_addr, sizeof(server_addr)-1, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
+    avformat_alloc_output_context2(&output_format_context, NULL, "flv", server_addr);
+}
+
+int ffmpeg_push_stream(AVPacket* pkt) {
+    int ret = av_interleaved_write_frame(output_format_context, pkt);
+    if(ret < 0) {
+        JANUS_LOG(LOG_ERR, "gx av push fail:%d\n", ret);
+    }
+
+    // av_packet_unref(&pkt);
+    // av_free_packet(&pkt);
+    return ret;
+}
+// end ffmpeg

@@ -108,7 +108,7 @@ Usage: janus-pp-rec [OPTIONS] source.mjr [destination.[opus|wav|webm|mp4|srt]]
 
 
 int janus_log_level = 4;
-gboolean janus_log_timestamps = FALSE;
+gboolean janus_log_timestamps = TRUE;
 gboolean janus_log_colors = TRUE;
 
 static janus_pp_frame_packet *list = NULL, *last = NULL;

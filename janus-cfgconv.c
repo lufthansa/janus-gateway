@@ -32,7 +32,7 @@
 #include "version.h"
 
 int janus_log_level = 4;
-gboolean janus_log_timestamps = FALSE;
+gboolean janus_log_timestamps = TRUE;
 gboolean janus_log_colors = TRUE;
 
 /* Main Code */

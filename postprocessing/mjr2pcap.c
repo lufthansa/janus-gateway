@@ -47,7 +47,7 @@
 #define ntohll(x) ((1==ntohl(1)) ? (x) : ((gint64)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
 
 int janus_log_level = 4;
-gboolean janus_log_timestamps = FALSE;
+gboolean janus_log_timestamps = TRUE;
 gboolean janus_log_colors = TRUE;
 
 int working = 0;
