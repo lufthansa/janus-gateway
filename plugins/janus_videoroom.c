@@ -1373,7 +1373,7 @@ static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data
 static void wbx_print_rooms();
 static int wbx_get_roomid(json_t *room, char* ret, int len);
 // end wxs
-
+#if 0
 // ffmpeg
 #include <libavformat/avformat.h>
 #include <libavutil/mathematics.h>
@@ -1385,7 +1385,7 @@ AVFormatContext* output_format_context = NULL;
 void ffmpeg_prepare(gchar* room_id);
 int ffmpeg_push_stream(AVPacket* pkt);
 // end ffmpeg
-
+#endif
 typedef struct janus_videoroom_session {
 	janus_plugin_session *handle;
 	gint64 sdp_sessid;
@@ -5294,8 +5294,8 @@ static void *janus_videoroom_handler(void *data) {
 				goto error;
             
 //			const char * room_id = json_string_value(room);
-            char* room_id[64] = {0};
-            int iret = wbx_get_roomid(room, room_id, 64)
+            char room_id[64] = {0};
+            int iret = wbx_get_roomid(room, room_id, 64);
             
 			JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler room_id = %s\n", room_id);
 			if(iret == 0)
