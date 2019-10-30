@@ -5292,9 +5292,13 @@ static void *janus_videoroom_handler(void *data) {
 			json_t *room = json_object_get(root, "room");
 			if(room == 0)
 				goto error;
-			const char * room_id = json_string_value(room);
+            
+//			const char * room_id = json_string_value(room);
+            char* room_id[64] = {0};
+            int iret = wbx_get_roomid(room, room_id, 64)
+            
 			JANUS_LOG(LOG_INFO, "willche in janus_videoroom_handler room_id = %s\n", room_id);
-			if(room_id == 0)
+			if(iret == 0)
 				goto error;
 			wbx_print_rooms();
 			videoroom = g_hash_table_lookup(rooms, room_id);
@@ -7072,8 +7076,8 @@ static int wbx_get_roomid(json_t *room, char* ret, int len)
 
     JANUS_LOG(LOG_INFO, "willche in wbx_get_roomid char room id %s \n", room_id);
 
-    int strlen = strlen(room_id);
-    if(strlen >= len) return 0;
+    int istrlen = strlen(room_id);
+    if(istrlen >= len) return 0;
 
     return snprintf(ret, len, "%s", room_id);
 }
