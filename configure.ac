@@ -900,6 +900,7 @@ AS_IF([test "x$enable_post_processing" = "xyes"],
                            libavutil
                            libavcodec
                            libavformat
+                           libswresamole
                            ogg
                          ])
       ])

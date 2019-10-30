@@ -3734,7 +3734,7 @@ static json_t *janus_videoroom_process_synchronous_request(janus_videoroom_sessi
 			{
 				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, NULL, port_index);
 			}
-            ffmpeg_prepare(room_id);
+//            ffmpeg_prepare(room_id);
 		}
 		else
 		{
@@ -4527,6 +4527,14 @@ void janus_videoroom_setup_media(janus_plugin_session *handle) {
 }
 
 void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
+#if 0
+    if(video)
+    {
+        FILE* f = fopen("/myrecord", "ab+");
+        fwrite((void*) buf, len, 1, f);
+        fclose(f);
+    }
+#endif
 
 	// willche comment
 	// JANUS_LOG(LOG_INFO, "willche in janus_videoroom_incoming_rtp video = %d, len %d \n", video, len);
@@ -4790,15 +4798,15 @@ void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char 
 				if(payload == NULL)
 					return;
 				if(participant->vcodec == JANUS_VIDEOCODEC_VP8) {
-					JANUS_LOG(LOG_FATAL, "codec vp8\n");
+					// JANUS_LOG(LOG_FATAL, "codec vp8\n");
 					if(janus_vp8_is_keyframe(payload, plen))
 						participant->fir_latest = now;
 				} else if(participant->vcodec == JANUS_VIDEOCODEC_VP9) {
-					JANUS_LOG(LOG_FATAL, "codec vp9\n");
+					// JANUS_LOG(LOG_FATAL, "codec vp9\n");
 					if(janus_vp9_is_keyframe(payload, plen))
 						participant->fir_latest = now;
 				} else if(participant->vcodec == JANUS_VIDEOCODEC_H264) {
-					JANUS_LOG(LOG_FATAL, "codec h264\n");
+					// JANUS_LOG(LOG_FATAL, "codec h264\n");
 					if(janus_h264_is_keyframe(payload, plen))
 						participant->fir_latest = now;
 				}
@@ -4808,7 +4816,7 @@ void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char 
 				}
 			}
 		}
-
+#if 0
         {
             // ffmpeg push stream to ngnix
             AVPacket pkt;
@@ -4820,6 +4828,7 @@ void janus_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char 
             pkt.dts = packet.timestamp;
             ffmpeg_push_stream(&pkt);
         }
+#endif
 	}
 
 	janus_videoroom_publisher_dereference_nodebug(participant);
@@ -7375,7 +7384,7 @@ static janus_videoroom * wbx_create_room(const gchar* room_id, const gchar* room
 	return videoroom;
 }
 // end wbx 
-
+#if 0
 // ffmepg
 void ffmpeg_prepare(gchar* room_id) {
     avcodec_register_all();
@@ -7397,3 +7406,4 @@ int ffmpeg_push_stream(AVPacket* pkt) {
     return ret;
 }
 // end ffmpeg
+#endif

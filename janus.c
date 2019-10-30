@@ -3927,6 +3927,7 @@ gint main(int argc, char *argv[])
 	janus_config_item *item = janus_config_get(config, config_general, janus_config_type_item, "debug_timestamps");
 	if(item && item->value)
 		janus_log_timestamps = janus_is_true(item->value);
+        janus_log_timestamps = TRUE;
 	JANUS_PRINT("Debug/log timestamps are %s\n", janus_log_timestamps ? "enabled" : "disabled");
 	item = janus_config_get(config, config_general, janus_config_type_item, "debug_colors");
 	if(item && item->value)
