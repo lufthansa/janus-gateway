@@ -1371,6 +1371,7 @@ static int wbx_remove_room(const char* room_id);
 static janus_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
 static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
 static void wbx_print_rooms();
+static int wbx_get_roomid(json_t *room, char* ret, int len);
 // end wxs
 
 // ffmpeg
@@ -4355,8 +4356,12 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				error_code = JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT;
 				goto plugin_response;
 			}
-			const char * room_id = json_string_value(room);
-			if(room_id == 0)
+            
+			// const char * room_id = json_string_value(room);
+			char room_id[64] = {0};
+            int room_id_ret = wbx_get_roomid(room, room_id, 64);
+            
+			if(room_id_ret == 0)
 			{
 				error_code = JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT;
 				goto plugin_response;
@@ -7041,6 +7046,29 @@ static void wbx_init()
 	wbx_display_int_queue(wbx_free_port, "wbx_free_port");
 }
 
+// get roomid form json
+static int wbx_get_roomid(json_t *room, char* ret, int len)
+{
+	const char * room_id = json_string_value(room);
+    int iret = 0;
+
+    if(room_id==0) {
+        int id = json_int_value(room);
+		JANUS_LOG(LOG_INFO, "willche in wbx_get_roomid int room id %d \n", id);
+        if(id == 0) return 0;
+        iret = snprintf(ret, len, "%d", id);
+        if(iret >= len) return 0;
+        return iret;
+    }
+
+    JANUS_LOG(LOG_INFO, "willche in wbx_get_roomid char room id %s \n", room_id);
+
+    int strlen = strlen(room_id);
+    if(strlen >= len) return 0;
+
+    return snprintf(ret, len, "%s", room_id);
+}
+
 static int wbx_get_port()
 {
 	int start_port = -1;
@@ -7204,7 +7232,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %s, videoport = %d, audio-port = %d \n", 
 		session_id, room_id, video_port, audio_port);
 
-    return;
+//    return;
 
 	// prepare sdp file
 	if(audio_port) 
