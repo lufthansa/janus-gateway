@@ -7066,7 +7066,7 @@ static int wbx_get_roomid(json_t *room, char* ret, int len)
     int iret = 0;
 
     if(room_id==0) {
-        int id = json_int_value(room);
+        int id = json_integer_value(room);
 		JANUS_LOG(LOG_INFO, "willche in wbx_get_roomid int room id %d \n", id);
         if(id == 0) return 0;
         iret = snprintf(ret, len, "%d", id);
