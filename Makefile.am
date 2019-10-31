@@ -456,12 +456,12 @@ endif
 
 if ENABLE_PLUGIN_WXSVIDEOROOM
 plugin_LTLIBRARIES += plugins/libwxs_videoroom.la
-plugins_libjanus_videoroom_la_SOURCES = plugins/wxs_videoroom.c
-plugins_libjanus_videoroom_la_CFLAGS = $(plugins_cflags) -lhiredis_vip
-plugins_libjanus_videoroom_la_LDFLAGS = $(plugins_ldflags)
-plugins_libjanus_videoroom_la_LIBADD = $(plugins_libadd)
-conf_DATA += conf/janus.plugin.videoroom.jcfg.sample
-EXTRA_DIST += conf/janus.plugin.videoroom.jcfg.sample
+plugins_libwxs_videoroom_la_SOURCES = plugins/wxs_videoroom.c
+plugins_libwxs_videoroom_la_CFLAGS = $(plugins_cflags) -lhiredis_vip
+plugins_libwxs_videoroom_la_LDFLAGS = $(plugins_ldflags)
+plugins_libwxs_videoroom_la_LIBADD = $(plugins_libadd)
+conf_DATA += conf/janus.plugin.wxsvideoroom.jcfg.sample
+EXTRA_DIST += conf/janus.plugin.wxsvideoroom.jcfg.sample
 endif
 
 if ENABLE_PLUGIN_VOICEMAIL
