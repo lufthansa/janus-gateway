@@ -1289,6 +1289,13 @@ typedef enum wxs_videoroom_p_type {
 	wxs_videoroom_p_type_publisher,			/* Participant (for receiving events) and optionally publisher */
 } wxs_videoroom_p_type;
 
+typedef enum wxs_videoroom_p_role {
+	wxs_videoroom_p_role_none = 0,
+	wxs_videoroom_p_role_producer,			
+	wxs_videoroom_p_role_presenter,
+	wxs_videoroom_p_role_asker,
+} wxs_videoroom_p_role;
+
 typedef struct wxs_videoroom_message {
 	janus_plugin_session *handle;
 	char *transaction;
@@ -1300,6 +1307,8 @@ static wxs_videoroom_message exit_message;
 
 
 typedef struct wxs_videoroom {
+	guint64 producer_id;	/* Producer session ID in the room */
+	guint64 asker_id;	    /* asker session ID in the room */
 	gchar *room_id;			/* Unique room ID */
 	gchar *room_name;			/* Room description */
 	gchar *room_secret;			/* Secret needed to manipulate (e.g., destroy) this room */
@@ -1340,6 +1349,8 @@ static gboolean lock_rtpfwd = FALSE;
 
 // wilche start wbx
 static GHashTable *ffmpegps;
+static GHashTable *publisher_info;  // <roomid, GHashTable<janus_session_id, wbx_publisher_info>>
+
 static GQueue  *wbx_used_port;
 static GQueue  *wbx_free_port;
 static const int wbx_publisher_port_start = 40000;
@@ -1347,6 +1358,7 @@ static const int wbx_publisher_port_step = 10;
 #define wbx_publisher_max_count 100
 static int wbx_publisher_count = 0;
 static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+static janus_mutex publisher_info_mutex = JANUS_MUTEX_INITIALIZER;
 static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
 #define MAX_PATH_LEN 512 
 static int wbx_port_map[wbx_publisher_max_count];
@@ -1357,6 +1369,13 @@ typedef struct wbx_ffmpeg_progress {
 	pid_t pid;
 	int port_index;
 } wbx_ffmpeg_progress;
+
+// all publish id
+typedef struct wbx_publisher_info {
+	gint64 private_id;
+	gint64 user_id;
+} wbx_publisher_info;
+
 
 static void wbx_init();
 static int wbx_get_port();
@@ -1397,7 +1416,9 @@ typedef struct wxs_videoroom_session {
 	volatile gint hangingup;
 	volatile gint destroyed;
 	janus_mutex mutex;
-	janus_refcount ref;
+	janus_refcount ref;    
+    wxs_videoroom_p_role  publisher_role;
+	gint64 session_id;  // wxs_videoroom_session->janus_plugin_session->gateway_handler->ice_handler->janus_handler first paramete
 } wxs_videoroom_session;
 static GHashTable *sessions;
 static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
@@ -1484,6 +1505,7 @@ static void *wxs_videoroom_rtp_forwarder_rtcp_thread(void *data);
 typedef struct wxs_videoroom_publisher {
 	wxs_videoroom_session *session;
 	wxs_videoroom *room;	/* Room */
+    wxs_videoroom_p_role  publisher_role;
 	gchar* room_id;	/* Unique room ID */
 	guint64 user_id;	/* Unique ID in the room */
 	guint32 pvt_id;		/* This is sent to the publisher for mapping purposes, but shouldn't be shared with others */
@@ -1783,6 +1805,8 @@ static void wxs_videoroom_reqfir(wxs_videoroom_publisher *publisher, const char 
 #define JANUS_VIDEOROOM_ERROR_ID_EXISTS			436
 #define JANUS_VIDEOROOM_ERROR_INVALID_SDP		437
 #define JANUS_VIDEOROOM_ERROR_PUB_PORT_OUT		438
+#define JANUS_VIDEOROOM_ERROR_ROLE_ERROR		439
+
 #define JANUS_VIDEOROOM_ERROR_DONT_CREATE		8888
 #define JANUS_VIDEOROOM_ERROR_DONT_DESTROY		9999
 
@@ -2022,8 +2046,10 @@ int wxs_videoroom_init(janus_callbacks *callback, const char *config_path) {
 	gateway = callback;
 
 	// willche init
-	ffmpegps = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free, (GDestroyNotify)wbx_ffmpeg_free_callback);
+	ffmpegps = g_hash_table_new_full(g_str_hash, g_str_hash, (GDestroyNotify)g_free, (GDestroyNotify)wbx_ffmpeg_free_callback);
 	janus_mutex_init(&ffmpegps_mutex);
+    publisher_info = g_hash_table_new_full(g_str_hash, g_str_hash, (GDestroyNotify)g_free, (GDestroyNotify)wbx_publisher_info_free_callback);
+	janus_mutex_init(&publisher_info_mutex);
 	wbx_init();
 
 	/* Parse configuration to populate the rooms list */
@@ -2327,6 +2353,11 @@ void wxs_videoroom_destroy(void) {
 	g_hash_table_destroy(ffmpegps);
 	ffmpegps = NULL;
 	janus_mutex_unlock(&ffmpegps_mutex);
+	janus_mutex_lock(&publisher_info_mutex);
+	g_hash_table_destroy(publisher_info);
+	publisher_info = NULL;
+	janus_mutex_unlock(&publisher_info_mutex);
+    
 
 	g_async_queue_unref(messages);
 	messages = NULL;
@@ -4725,99 +4756,106 @@ void wxs_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *b
 			}
 		}
 
-        
-		/* Done, relay it */
-		wxs_videoroom_rtp_relay_packet packet;
-		packet.data = rtp;
-		packet.length = len;
-		packet.is_video = video;
-		packet.svc = FALSE;
-		if(video && videoroom->do_svc) {
-			/* We're doing SVC: let's parse this packet to see which layers are there */
-			int plen = 0;
-			char *payload = janus_rtp_payload(buf, len, &plen);
-			if(payload == NULL)
-				return;
-			uint8_t pbit = 0, dbit = 0, ubit = 0, bbit = 0, ebit = 0;
-			int found = 0, spatial_layer = 0, temporal_layer = 0;
-			if(janus_vp9_parse_svc(payload, plen, &found, &spatial_layer, &temporal_layer, &pbit, &dbit, &ubit, &bbit, &ebit) == 0) {
-				if(found) {
-					packet.svc = TRUE;
-					packet.spatial_layer = spatial_layer;
-					packet.temporal_layer = temporal_layer;
-					packet.pbit = pbit;
-					packet.dbit = dbit;
-					packet.ubit = ubit;
-					packet.bbit = bbit;
-					packet.ebit = ebit;
-				}
-			}
-		}
-		packet.ssrc[0] = (sc != -1 ? participant->ssrc[0] : 0);
-		packet.ssrc[1] = (sc != -1 ? participant->ssrc[1] : 0);
-		packet.ssrc[2] = (sc != -1 ? participant->ssrc[2] : 0);
-		/* Backup the actual timestamp and sequence number set by the publisher, in case switching is involved */
-		packet.timestamp = ntohl(packet.data->timestamp);
-		packet.seq_number = ntohs(packet.data->seq_number);
-		/* Go: some viewers may decide to drop the packet, but that's up to them */
-		janus_mutex_lock_nodebug(&participant->subscribers_mutex);
-		g_slist_foreach(participant->subscribers, wxs_videoroom_relay_rtp_packet, &packet);
-		janus_mutex_unlock_nodebug(&participant->subscribers_mutex);
+        // willche: only reply needed package.
+        if(0)
+        {
+            // TODO: check if needed.
+        }
+        else 
+        {
+    		/* Done, relay it */
+    		wxs_videoroom_rtp_relay_packet packet;
+    		packet.data = rtp;
+    		packet.length = len;
+    		packet.is_video = video;
+    		packet.svc = FALSE;
+    		if(video && videoroom->do_svc) {
+    			/* We're doing SVC: let's parse this packet to see which layers are there */
+    			int plen = 0;
+    			char *payload = janus_rtp_payload(buf, len, &plen);
+    			if(payload == NULL)
+    				return;
+    			uint8_t pbit = 0, dbit = 0, ubit = 0, bbit = 0, ebit = 0;
+    			int found = 0, spatial_layer = 0, temporal_layer = 0;
+    			if(janus_vp9_parse_svc(payload, plen, &found, &spatial_layer, &temporal_layer, &pbit, &dbit, &ubit, &bbit, &ebit) == 0) {
+    				if(found) {
+    					packet.svc = TRUE;
+    					packet.spatial_layer = spatial_layer;
+    					packet.temporal_layer = temporal_layer;
+    					packet.pbit = pbit;
+    					packet.dbit = dbit;
+    					packet.ubit = ubit;
+    					packet.bbit = bbit;
+    					packet.ebit = ebit;
+    				}
+    			}
+    		}
+    		packet.ssrc[0] = (sc != -1 ? participant->ssrc[0] : 0);
+    		packet.ssrc[1] = (sc != -1 ? participant->ssrc[1] : 0);
+    		packet.ssrc[2] = (sc != -1 ? participant->ssrc[2] : 0);
+    		/* Backup the actual timestamp and sequence number set by the publisher, in case switching is involved */
+    		packet.timestamp = ntohl(packet.data->timestamp);
+    		packet.seq_number = ntohs(packet.data->seq_number);
+    		/* Go: some viewers may decide to drop the packet, but that's up to them */
+    		janus_mutex_lock_nodebug(&participant->subscribers_mutex);
+    		g_slist_foreach(participant->subscribers, wxs_videoroom_relay_rtp_packet, &packet);
+    		janus_mutex_unlock_nodebug(&participant->subscribers_mutex);
 
-		/* Check if we need to send any REMB, FIR or PLI back to this publisher */
-		if(video && participant->video_active) {
-			/* Did we send a REMB already, or is it time to send one? */
-			gboolean send_remb = FALSE;
-			if(participant->remb_latest == 0 && participant->remb_startup > 0) {
-				/* Still in the starting phase, send the ramp-up REMB feedback */
-				send_remb = TRUE;
-			} else if(participant->remb_latest > 0 && janus_get_monotonic_time()-participant->remb_latest >= 5*G_USEC_PER_SEC) {
-				/* 5 seconds have passed since the last REMB, send a new one */
-				send_remb = TRUE;
-			}
+    		/* Check if we need to send any REMB, FIR or PLI back to this publisher */
+    		if(video && participant->video_active) {
+    			/* Did we send a REMB already, or is it time to send one? */
+    			gboolean send_remb = FALSE;
+    			if(participant->remb_latest == 0 && participant->remb_startup > 0) {
+    				/* Still in the starting phase, send the ramp-up REMB feedback */
+    				send_remb = TRUE;
+    			} else if(participant->remb_latest > 0 && janus_get_monotonic_time()-participant->remb_latest >= 5*G_USEC_PER_SEC) {
+    				/* 5 seconds have passed since the last REMB, send a new one */
+    				send_remb = TRUE;
+    			}
 
-			if(send_remb && participant->bitrate) {
-				/* We send a few incremental REMB messages at startup */
-				uint32_t bitrate = participant->bitrate;
-				if(participant->remb_startup > 0) {
-					bitrate = bitrate/participant->remb_startup;
-					participant->remb_startup--;
-				}
-				JANUS_LOG(LOG_VERB, "Sending REMB (%s, %"SCNu32")\n", participant->display, bitrate);
-				char rtcpbuf[24];
-				janus_rtcp_remb((char *)(&rtcpbuf), 24, bitrate);
-				gateway->relay_rtcp(handle, video, rtcpbuf, 24);
-				if(participant->remb_startup == 0)
-					participant->remb_latest = janus_get_monotonic_time();
-			}
-			/* Generate FIR/PLI too, if needed */
-			if(video && participant->video_active && (videoroom->fir_freq > 0)) {
-				/* We generate RTCP every tot seconds/frames */
-				gint64 now = janus_get_monotonic_time();
-				/* First check if this is a keyframe, though: if so, we reset the timer */
-				int plen = 0;
-				char *payload = janus_rtp_payload(buf, len, &plen);
-				if(payload == NULL)
-					return;
-				if(participant->vcodec == JANUS_VIDEOCODEC_VP8) {
-					// JANUS_LOG(LOG_FATAL, "codec vp8\n");
-					if(janus_vp8_is_keyframe(payload, plen))
-						participant->fir_latest = now;
-				} else if(participant->vcodec == JANUS_VIDEOCODEC_VP9) {
-					// JANUS_LOG(LOG_FATAL, "codec vp9\n");
-					if(janus_vp9_is_keyframe(payload, plen))
-						participant->fir_latest = now;
-				} else if(participant->vcodec == JANUS_VIDEOCODEC_H264) {
-					// JANUS_LOG(LOG_FATAL, "codec h264\n");
-					if(janus_h264_is_keyframe(payload, plen))
-						participant->fir_latest = now;
-				}
-				if((now-participant->fir_latest) >= ((gint64)videoroom->fir_freq*G_USEC_PER_SEC)) {
-					/* FIXME We send a FIR every tot seconds */
-					wxs_videoroom_reqfir(participant, "Regular keyframe request");
-				}
-			}
-		}
+    			if(send_remb && participant->bitrate) {
+    				/* We send a few incremental REMB messages at startup */
+    				uint32_t bitrate = participant->bitrate;
+    				if(participant->remb_startup > 0) {
+    					bitrate = bitrate/participant->remb_startup;
+    					participant->remb_startup--;
+    				}
+    				JANUS_LOG(LOG_VERB, "Sending REMB (%s, %"SCNu32")\n", participant->display, bitrate);
+    				char rtcpbuf[24];
+    				janus_rtcp_remb((char *)(&rtcpbuf), 24, bitrate);
+    				gateway->relay_rtcp(handle, video, rtcpbuf, 24);
+    				if(participant->remb_startup == 0)
+    					participant->remb_latest = janus_get_monotonic_time();
+    			}
+    			/* Generate FIR/PLI too, if needed */
+    			if(video && participant->video_active && (videoroom->fir_freq > 0)) {
+    				/* We generate RTCP every tot seconds/frames */
+    				gint64 now = janus_get_monotonic_time();
+    				/* First check if this is a keyframe, though: if so, we reset the timer */
+    				int plen = 0;
+    				char *payload = janus_rtp_payload(buf, len, &plen);
+    				if(payload == NULL)
+    					return;
+    				if(participant->vcodec == JANUS_VIDEOCODEC_VP8) {
+    					// JANUS_LOG(LOG_FATAL, "codec vp8\n");
+    					if(janus_vp8_is_keyframe(payload, plen))
+    						participant->fir_latest = now;
+    				} else if(participant->vcodec == JANUS_VIDEOCODEC_VP9) {
+    					// JANUS_LOG(LOG_FATAL, "codec vp9\n");
+    					if(janus_vp9_is_keyframe(payload, plen))
+    						participant->fir_latest = now;
+    				} else if(participant->vcodec == JANUS_VIDEOCODEC_H264) {
+    					// JANUS_LOG(LOG_FATAL, "codec h264\n");
+    					if(janus_h264_is_keyframe(payload, plen))
+    						participant->fir_latest = now;
+    				}
+    				if((now-participant->fir_latest) >= ((gint64)videoroom->fir_freq*G_USEC_PER_SEC)) {
+    					/* FIXME We send a FIR every tot seconds */
+    					wxs_videoroom_reqfir(participant, "Regular keyframe request");
+    				}
+    			}
+    		}
+        }
 #if 0
         {
             // ffmpeg push stream to ngnix
@@ -5269,7 +5307,8 @@ static void *wxs_videoroom_handler(void *data) {
 		json_t *event = NULL;
 		gboolean sdp_update = FALSE;
 
-		JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler text = %s\n", request_text);
+        gint64 ***** session_id = (gint64*****)session;
+		JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler text = %s, session_id = %lu\n", request_text, (gint64)*****session_id);
 
 		if(json_object_get(msg->jsep, "update") != NULL)
 			sdp_update = json_is_true(json_object_get(msg->jsep, "update"));
@@ -5309,7 +5348,12 @@ static void *wxs_videoroom_handler(void *data) {
 				JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler room_id = %s already exist\n", room_id);
 				goto error;
 			}
-			videoroom = wbx_create_room(room_id, room_id);
+			json_t *secret = json_object_get(root, "sercret");
+            if(secret) {
+			    videoroom = wbx_create_room(room_id, room_id, json_string_value(secret));
+            } else {
+			    videoroom = wbx_create_room(room_id, room_id, 0);
+            }
 			g_hash_table_insert(rooms, strdup(room_id), videoroom);
 			// willche end create rooms
 			
@@ -5372,7 +5416,12 @@ static void *wxs_videoroom_handler(void *data) {
 						}
 					}
 				}
-				JANUS_LOG(LOG_VERB, "  -- Publisher ID: %"SCNu64"\n", user_id);
+
+                // willche: add producer id
+                videoroom->producer_id = wbx_get_janus_session(session);
+                videoroom->asker_id = 0;
+                
+				JANUS_LOG(LOG_INFO, "  -- add Publisher ID: %"SCNu64" session id = %lu\n", user_id, videoroom->producer_id);
 				/* Process the request */
 				json_t *audio = NULL, *video = NULL, *data = NULL,
 					*bitrate = NULL, *record = NULL, *recfile = NULL;
@@ -5429,6 +5478,10 @@ static void *wxs_videoroom_handler(void *data) {
 				/* Finally, generate a private ID: this is only needed in case the participant
 				 * wants to allow the plugin to know which subscriptions belong to them */
 				publisher->pvt_id = 0;
+
+                // willche: set publisher to producer
+                publisher->publisher_role = wxs_videoroom_p_role_producer;
+                
 				while(publisher->pvt_id == 0) {
 					publisher->pvt_id = janus_random_uint32();
 					if(g_hash_table_lookup(publisher->room->private_ids, GUINT_TO_POINTER(publisher->pvt_id)) != NULL) {
@@ -5530,7 +5583,9 @@ static void *wxs_videoroom_handler(void *data) {
 				}
 				janus_mutex_unlock(&publisher->room->mutex);
 			} else if(!strcasecmp(ptype_text, "subscriber") || !strcasecmp(ptype_text, "listener")) {
-				JANUS_LOG(LOG_VERB, "Configuring new subscriber\n");
+
+                JANUS_LOG(LOG_INFO, "willche in user no type Configuring new subscriber user session = %ul\n", session);                
+                
 				gboolean legacy = !strcasecmp(ptype_text, "listener");
 				if(legacy) {
 					JANUS_LOG(LOG_WARN, "Subscriber is using the legacy 'listener' ptype\n");
@@ -5577,6 +5632,7 @@ static void *wxs_videoroom_handler(void *data) {
 				}
 				wxs_videoroom_publisher *owner = NULL;
 				wxs_videoroom_publisher *publisher = g_hash_table_lookup(videoroom->participants, &feed_id);
+
 				if(publisher == NULL || g_atomic_int_get(&publisher->destroyed) || publisher->sdp == NULL) {
 					JANUS_LOG(LOG_ERR, "No such feed (%"SCNu64")\n", feed_id);
 					error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_FEED;
@@ -5584,6 +5640,19 @@ static void *wxs_videoroom_handler(void *data) {
 					janus_mutex_unlock(&videoroom->mutex);
 					goto error;
 				} else {
+                    // willche : only producer can sub all publish, asker can only sub producer.                
+                    gint64 janus_session_id = wbx_get_janus_session(session);
+                    gint64 target_session_id = wbx_get_janus_session(publisher->session);
+                    if((janus_session_id != videoroom->producer_id && janus_session_id != videoroom->asker_id)
+                        || (janus_session_id == videoroom->asker_id && target_session_id != videoroom->producer_id))
+                    {
+    					JANUS_LOG(LOG_ERR, "Invalid role only producer can sub all publish, asker can only sub producer\n");
+                        error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+    					g_snprintf(error_cause, 512, "Invalid role only producer can sub all publish, asker can only sub producer");
+                        janus_mutex_unlock(&videoroom->mutex);
+    					goto error;
+                    }
+                    
 					/* Increase the refcount before unlocking so that nobody can remove and free the publisher in the meantime. */
 					janus_refcount_increase(&publisher->ref);
 					janus_refcount_increase(&publisher->session->ref);
@@ -6446,6 +6515,25 @@ static void *wxs_videoroom_handler(void *data) {
 				/* This is a new publisher: is there room? */
 				participant = wxs_videoroom_session_get_publisher(session);
 				wxs_videoroom *videoroom = participant->room;
+
+                // willche : set publisher to presenter or asker
+                json_t *role = json_object_get(root, "role");
+                if(role == NULL)
+                {
+					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    g_snprintf(error_cause, 512, "client need set role key");
+					goto error;
+                }
+				guint64 role_id = json_integer_value(role);
+                if(role_id != wxs_videoroom_p_role_presenter && role_id != wxs_videoroom_p_role_asker)
+                {
+					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    g_snprintf(error_cause, 512, "Only presenter or asker can join");
+					goto error;
+                }
+                participant->publisher_role = role_id;
+
+                
 				int count = 0;
 				GHashTableIter iter;
 				gpointer value;
@@ -7321,17 +7409,43 @@ static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps) {
 	JANUS_LOG(LOG_INFO, "willche out wbx_ffmpeg_free \n");
 }
 
+static void wbx_publisher_info_free_callback(GHashTable *gtb) {
+	g_hash_table_destroy(gtb);
+	JANUS_LOG(LOG_INFO, "willche out wbx_publisher_info_free_callback \n");
+}
+
+static void wbx_publisher_info_value_free_callback(publisher_info *pi) {
+	g_free(pi);
+	JANUS_LOG(LOG_INFO, "willche out wbx_publisher_info_value_free_callback \n");
+}
+
 static int wbx_remove_room(const char* room_id)
 {
+    // clear room
 	JANUS_LOG(LOG_INFO, "willche in wbx_remove_room room_id = %s thread id = %ul \n", room_id, pthread_self());
 	janus_mutex_lock(&rooms_mutex);
 	g_hash_table_remove(rooms, room_id);
 	janus_mutex_unlock(&rooms_mutex);
 
+    // clear all publish in room
+    janus_mutex_lock(&publisher_info_mutex);
+	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
+    if(ret)
+    {
+        GHashTable* tmpTable = (publisher_info, publish->room->room_id);
+        if(tmpTable)
+        {
+            g_hash_table_destroy(tmpTable);
+        }
+
+        g_hash_table_remove(publisher_info, room_id);
+    }
+    janus_mutex_unlock(&publisher_info_mutex);
+    
 	return 0;
 }
 
-static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomdesc)
+static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomdesc, const gchar* secret)
 {
 	JANUS_LOG(LOG_INFO, "willche in wbx_create_room room id = %s \n", room_id);
 	wxs_videoroom *videoroom = g_malloc0(sizeof(wxs_videoroom));
@@ -7352,8 +7466,9 @@ static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomde
 	else
 		description = g_strdup("no name");
 	videoroom->room_name = description;
-	
-	videoroom->room_secret = g_strdup("adminpwd");
+
+    if(secret)
+	    videoroom->room_secret = g_strdup(secret);
 
 	videoroom->is_private = FALSE;
 	videoroom->require_pvtid = FALSE;
@@ -7386,9 +7501,101 @@ static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomde
 		videoroom->room_secret ? videoroom->room_secret : "no secret",
 		videoroom->room_pin ? videoroom->room_pin : "no pin",
 		videoroom->require_pvtid ? "required" : "optional");
-			
+
+    GHashTable* tmp = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free, (GDestroyNotify)wbx_publisher_info_value_free_callback);
+    g_hash_table_insert(publisher_info, g_strdup(room_id), tmp);
+
 	return videoroom;
 }
+
+// get uniqe session id of janus from room session to confirm the room session role.
+// only work when all points are the first parameter of struct.
+static gint64 wbx_get_janus_session(wxs_videoroom_session* session)
+{
+    gint64 **** sid = (gint64****) session;
+    return (gint64)****sid;
+}
+
+static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
+{
+    intt ret = -1;
+	janus_mutex_lock(&publisher_info_mutex);
+	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
+    if(ret)
+    {
+        GHashTable* tmpTable = (publisher_info, publish->room->room_id);
+        wbx_publisher_info* info = g_hash_table_lookup(tmpTable, wbx_get_janus_session(publish->session));
+
+        if(info)
+        {
+            JANUS_LOG(LOG_ERR, "willche in wbx_table_add_publisher publisher already added");
+            janus_mutex_unlock(&publisher_info_mutex);
+            return ret;
+        }
+
+        info = g_malloc0(sizeof(wbx_publisher_info));
+        info->private_id = publish->pvt_id;
+        info->user_id = publish->user_id;
+        g_hash_table_insert(publisher_info, wbx_get_janus_session(publish->session), info);
+
+        ret = 0;
+    }
+
+	janus_mutex_unlock(&publisher_info_mutex);
+    return ret;
+}
+
+static int wbx_table_del_publisher(wxs_videoroom_publisher* publish)
+{
+    int ret = -1;
+
+    janus_mutex_lock(&publisher_info_mutex);
+	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
+    if(ret)
+    {
+        GHashTable* tmpTable = (publisher_info, publish->room->room_id);
+        wbx_publisher_info* info = g_hash_table_lookup(tmpTable, wbx_get_janus_session(publish->session));
+
+        if(!info)
+        {
+            JANUS_LOG(LOG_ERR, "willche in wbx_table_del_publisher publisher not added");
+            janus_mutex_unlock(&publisher_info_mutex);
+            return ret;
+        }
+
+        g_hash_table_remove(tmpTable, wbx_get_janus_session(publish->session));
+
+        ret = 0;
+    }
+
+	janus_mutex_unlock(&publisher_info_mutex);
+    
+    return ret;
+}
+
+static void wbx_check_auth(const char* token)
+{
+    // TODO : check user token
+}
+
+static int wbx_noti_publisher(wxs_videoroom* videoroom, const char* noti)
+{
+    int ret = -1;
+    // TODO :  
+
+    return ret;
+}
+
+static int wbx_get_publisher_list(wxs_videoroom_publisher* publisher)
+{
+    int ret = -1;
+    // TODO :  
+
+    return ret;
+
+}
+
+
 // end wbx 
 #if 0
 // ffmepg
