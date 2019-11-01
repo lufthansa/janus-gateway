@@ -2533,6 +2533,9 @@ static void wxs_videoroom_leave_or_unpublish(wxs_videoroom_publisher *participan
 	if(is_leaving) {
 		g_hash_table_remove(participant->room->participants, &participant->user_id);
 		g_hash_table_remove(participant->room->private_ids, GUINT_TO_POINTER(participant->pvt_id));
+
+        // willche del publisher in map
+        wbx_table_del_publisher(participant);
 	}
 	janus_mutex_unlock(&participant->room->mutex);
 	json_decref(event);
@@ -6777,6 +6780,10 @@ static void *wxs_videoroom_handler(void *data) {
 				/* How long will the Janus core take to push the event? */
 				g_atomic_int_set(&session->hangingup, 0);
 				gint64 start = janus_get_monotonic_time();
+
+                // willche add publisher to map
+                wbx_table_add_publisher(participant);
+                
 				int res = gateway->push_event(msg->handle, &wxs_videoroom_plugin, msg->transaction, event, jsep);
 				JANUS_LOG(LOG_VERB, "  >> Pushing event: %d (took %"SCNu64" us)\n", res, janus_get_monotonic_time()-start);
 				/* Done */
