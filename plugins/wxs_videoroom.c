@@ -3968,7 +3968,53 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		janus_refcount_decrease(&videoroom->ref);
 		JANUS_LOG(LOG_VERB, "VideoRoom room allowed list updated\n");
 		goto prepare_response;
-	}else if (!strcasecmp(request_text, "prodecerlist")) {
+	}else if (!strcasecmp(request_text, "pullstream")) {
+        // producer want pull present`s media data
+        wxs_videoroom_publisher publisher = wxs_videoroom_session_get_publisher(session);
+        if(publisher)
+        {
+            if(publisher->publisher_role != wxs_videoroom_p_role_producer)
+            {
+                goto prepare_response;
+            }
+
+            wxs_videoroom room = publisher->room;
+            
+            json_t *presentid = json_object_get(root, "presentid");
+            json_t *publishtype = json_object_get(root, "publish");
+            if(presentid == NULL || publishtype == NULL) 
+            {
+                goto prepare_response;
+            }
+            int present_id = json_integer_value(presentid);
+            int publish_type = json_integer_value(publishtype);
+
+            GHashTableIter iter;
+        	gpointer value;
+        	g_hash_table_iter_init(&iter, room->participants);
+        	while (participant->room && !g_atomic_int_get(&room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) {
+        		wxs_videoroom_publisher *p = value;
+        		if(p && p->session && p->user_id == present_id) {
+                    json_t *needpublish = json_object();
+                    if(publish_type)
+                    {
+            		    json_object_set_new(needpublish, "videoroom", json_string("needpublish"));
+                    }
+                    else
+                    {
+            		    json_object_set_new(needpublish, "videoroom", json_string("needunpublish"));
+                    }
+            		json_object_set_new(needpublish, "room", json_string(publisher->room_id));
+        			JANUS_LOG(LOG_INFO, "Notifying participant %"SCNu64" (%s)\n", p->user_id, p->display ? p->display : "??");
+        			int ret = gateway->push_event(p->session->handle, &wxs_videoroom_plugin, NULL, needpublish, NULL);
+                    
+                    goto prepare_response;
+        		}
+        	}
+        }
+        
+        goto prepare_response;
+    }else if (!strcasecmp(request_text, "prodecerlist")) {
         // TODO : if need
     } else if(!strcasecmp(request_text, "kick")) {
 		JANUS_LOG(LOG_VERB, "Attempt to kick a participant from an existing videoroom room\n");
