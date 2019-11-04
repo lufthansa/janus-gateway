@@ -3968,7 +3968,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		janus_refcount_decrease(&videoroom->ref);
 		JANUS_LOG(LOG_VERB, "VideoRoom room allowed list updated\n");
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "kick")) {
+	}else if (!strcasecmp(request_text, "prodecerlist")) {
+        // TODO : if need
+    } else if(!strcasecmp(request_text, "kick")) {
 		JANUS_LOG(LOG_VERB, "Attempt to kick a participant from an existing videoroom room\n");
 		JANUS_VALIDATE_JSON_OBJECT(root, kick_parameters,
 			error_code, error_cause, TRUE,
@@ -4506,6 +4508,8 @@ void wxs_videoroom_setup_media(janus_plugin_session *handle) {
 		/* If this is a publisher, notify all subscribers about the fact they can
 		 * now subscribe; if this is a subscriber, instead, ask the publisher a FIR */
 		if(session->participant_type == wxs_videoroom_p_type_publisher) {
+            // TODO : willche: don`t send info to present, only send producer to asker.
+            
 			wxs_videoroom_publisher *participant = wxs_videoroom_session_get_publisher(session);
 			/* Notify all other participants that there's a new boy in town */
 			json_t *list = json_array();
@@ -5336,6 +5340,22 @@ static void *wxs_videoroom_handler(void *data) {
 			json_t *room = json_object_get(root, "room");
 			if(room == 0)
 				goto error;
+
+            // willche : check if new join is producer, only producer can create room
+            json_t *role = json_object_get(root, "role");
+            if(role == NULL)
+            {
+				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                g_snprintf(error_cause, 512, "no role when join ");
+				goto error;
+            }
+			guint64 role_id = json_integer_value(role);
+            if(role_id != wxs_videoroom_p_role_producer)
+            {
+				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                g_snprintf(error_cause, 512, "Only producer can create");
+				goto error;
+            }
             
 //			const char * room_id = json_string_value(room);
             char room_id[64] = {0};
@@ -5643,7 +5663,10 @@ static void *wxs_videoroom_handler(void *data) {
 					janus_mutex_unlock(&videoroom->mutex);
 					goto error;
 				} else {
-                    // willche : only producer can sub all publish, asker can only sub producer.                
+                    
+                    // willche : only producer can sub all publish, asker can only sub producer.
+                    // async handler, join as a sub cmd package will looks in the back of attached ret package.
+                    // but actually join cmd is before attached ret.
                     gint64 janus_session_id = wbx_get_janus_session(session);
                     gint64 target_session_id = wbx_get_janus_session(publisher->session);
                     if((janus_session_id != videoroom->producer_id && janus_session_id != videoroom->asker_id)
@@ -5655,6 +5678,7 @@ static void *wxs_videoroom_handler(void *data) {
                         janus_mutex_unlock(&videoroom->mutex);
     					goto error;
                     }
+                    
                     
 					/* Increase the refcount before unlocking so that nobody can remove and free the publisher in the meantime. */
 					janus_refcount_increase(&publisher->ref);
@@ -5749,7 +5773,7 @@ static void *wxs_videoroom_handler(void *data) {
 						json_object_set_new(event, "display", json_string(publisher->display));
 					if(legacy)
 						json_object_set_new(event, "warning", json_string("Deprecated use of 'listener' ptype, update to the new 'subscriber' ASAP"));
-					session->participant_type = wxs_videoroom_p_type_subscriber;
+				    session->participant_type = wxs_videoroom_p_type_subscriber;
 					JANUS_LOG(LOG_VERB, "Preparing JSON event as a reply\n");
 					/* Negotiate by sending the selected publisher SDP back */
 					janus_mutex_lock(&publisher->subscribers_mutex);
