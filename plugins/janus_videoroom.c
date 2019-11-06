@@ -1337,55 +1337,6 @@ static janus_mutex rooms_mutex = JANUS_MUTEX_INITIALIZER;
 static char *admin_key = NULL;
 static gboolean lock_rtpfwd = FALSE;
 
-
-// wilche start wbx
-static GHashTable *ffmpegps;
-static GQueue  *wbx_used_port;
-static GQueue  *wbx_free_port;
-static const int wbx_publisher_port_start = 40000;
-static const int wbx_publisher_port_step = 10;
-#define wbx_publisher_max_count 100
-static int wbx_publisher_count = 0;
-static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
-static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
-#define MAX_PATH_LEN 512 
-static int wbx_port_map[wbx_publisher_max_count];
-
-typedef struct wbx_ffmpeg_progress {
-	gint64 sdp_sessid;
-	gint64 user_id;
-	pid_t pid;
-	int port_index;
-} wbx_ffmpeg_progress;
-
-static void wbx_init();
-static int wbx_get_port();
-static int wbx_retrun_port(int index);
-static int wbx_kill_ffmpeg(janus_videoroom_publisher* publisher, const char* room_id, guint64 user_id, gboolean return_port);
-static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server, int port_index);
-static int wbx_check_ffmpeg(const char* room_id);
-static void wbx_print_ffmpegps();
-static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
-static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
-static int wbx_remove_room(const char* room_id);
-static janus_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
-static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
-static void wbx_print_rooms();
-static int wbx_get_roomid(json_t *room, char* ret, int len);
-// end wxs
-#if 0
-// ffmpeg
-#include <libavformat/avformat.h>
-#include <libavutil/mathematics.h>
-#include <libavutil/time.h>
-
-// TODO: 根据roomid扩展
-AVFormatContext* output_format_context = NULL;
-
-void ffmpeg_prepare(gchar* room_id);
-int ffmpeg_push_stream(AVPacket* pkt);
-// end ffmpeg
-#endif
 typedef struct janus_videoroom_session {
 	janus_plugin_session *handle;
 	gint64 sdp_sessid;
@@ -1787,6 +1738,57 @@ static void janus_videoroom_reqfir(janus_videoroom_publisher *publisher, const c
 
 #define JANUS_VIDEOROOM_ERROR_DONT_CREATE		8888
 #define JANUS_VIDEOROOM_ERROR_DONT_DESTROY		9999
+
+
+// wilche start wbx
+static GHashTable *ffmpegps;
+static GQueue  *wbx_used_port;
+static GQueue  *wbx_free_port;
+static const int wbx_publisher_port_start = 40000;
+static const int wbx_publisher_port_step = 10;
+#define wbx_publisher_max_count 100
+static int wbx_publisher_count = 0;
+static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
+#define MAX_PATH_LEN 512 
+static int wbx_port_map[wbx_publisher_max_count];
+
+typedef struct wbx_ffmpeg_progress {
+	gint64 sdp_sessid;
+	gint64 user_id;
+	pid_t pid;
+	int port_index;
+} wbx_ffmpeg_progress;
+
+static void wbx_init();
+static int wbx_get_port();
+static int wbx_retrun_port(int index);
+static int wbx_kill_ffmpeg(janus_videoroom_publisher* publisher, const char* room_id, guint64 user_id, gboolean return_port);
+static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server, int port_index);
+static int wbx_check_ffmpeg(const char* room_id);
+static void wbx_print_ffmpegps();
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
+static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
+static int wbx_remove_room(const char* room_id);
+static janus_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
+static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
+static void wbx_print_rooms();
+static int wbx_get_roomid(json_t *room, char* ret, int len);
+// end wxs
+#if 0
+// ffmpeg
+#include <libavformat/avformat.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/time.h>
+
+// TODO: 根据roomid扩展
+AVFormatContext* output_format_context = NULL;
+
+void ffmpeg_prepare(gchar* room_id);
+int ffmpeg_push_stream(AVPacket* pkt);
+// end ffmpeg
+#endif
+
 
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_publisher *p,
 		const gchar *host, int port, int rtcp_port, int pt, uint32_t ssrc,
