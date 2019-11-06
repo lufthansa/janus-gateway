@@ -5416,10 +5416,10 @@ static void *wxs_videoroom_handler(void *data) {
             
 			wbx_print_rooms();
 			videoroom = g_hash_table_lookup(rooms, room_id);
-			if(videoroom) 
+			if(videoroom)
 			{
 				JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler room_id = %s already exist\n", room_id);
-                
+#if 0                
                 if(role_id != wxs_videoroom_p_role_presenter && role_id != wxs_videoroom_p_role_asker)
                 {
     				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
@@ -5427,8 +5427,9 @@ static void *wxs_videoroom_handler(void *data) {
     				janus_mutex_unlock(&rooms_mutex);
     				goto error;
                 }
+#endif
 			}
-            else 
+            else    // if room is not exist, only producer can create room.
             {
                 if(role_id != wxs_videoroom_p_role_producer)
                 {
@@ -5437,7 +5438,9 @@ static void *wxs_videoroom_handler(void *data) {
     				janus_mutex_unlock(&rooms_mutex);
     				goto error;
                 }
-            
+
+                // TODO: check if this room url belong to this producer
+                
        			json_t *secret = json_object_get(root, "sercret");
                 if(secret) {
     			    videoroom = wbx_create_room(room_id, room_id, json_string_value(secret));
@@ -5474,8 +5477,14 @@ static void *wxs_videoroom_handler(void *data) {
 				guint64 role_id = json_integer_value(role);
                 if(role_id != wxs_videoroom_p_role_presenter && role_id != wxs_videoroom_p_role_asker)
                 {
+					//error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    //g_snprintf(error_cause, 512, "Only presenter or asker can join");
+					//goto error;
+                }
+                if(role_id == wxs_videoroom_p_role_none)
+                {
 					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
-                    g_snprintf(error_cause, 512, "Only presenter or asker can join");
+                    g_snprintf(error_cause, 512, "role  is none");
 					goto error;
                 }
 
