@@ -7646,7 +7646,7 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
     {
-        GHashTable* tmpTable = (publisher_info, publish->room->room_id);
+        GHashTable* tmpTable = g_hash_table_lookup(publisher_info, publish->room->room_id);
         wbx_publisher_info* info = g_hash_table_lookup(tmpTable, wbx_get_janus_session(publish->session));
 
         if(info)
@@ -7676,7 +7676,7 @@ static int wbx_table_del_publisher(wxs_videoroom_publisher* publish)
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
     {
-        GHashTable* tmpTable = (publisher_info, publish->room->room_id);
+        GHashTable* tmpTable = g_hash_table_lookup(publisher_info, publish->room->room_id);
         wbx_publisher_info* info = g_hash_table_lookup(tmpTable, wbx_get_janus_session(publish->session));
 
         if(!info)
