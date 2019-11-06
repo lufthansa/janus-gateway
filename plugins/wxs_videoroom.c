@@ -7540,6 +7540,7 @@ static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps) {
 }
 
 static void wbx_publisher_info_free_callback(GHashTable *gtb) {
+    // TODO : why can`t destroy ? will crash
 	g_hash_table_destroy(gtb);
 	JANUS_LOG(LOG_INFO, "willche out wbx_publisher_info_free_callback \n");
 }
@@ -7562,13 +7563,12 @@ static int wbx_remove_room(const char* room_id)
 	int ret = g_hash_table_contains(publisher_info, room_id);
     if(ret)
     {
-        GHashTable* tmpTable = (publisher_info, room_id);
+        GHashTable* tmpTable = g_hash_table_lookup(publisher_info, room_id);
         if(tmpTable)
         {
-            g_hash_table_destroy(tmpTable);
+//            g_hash_table_destroy(tmpTable);
+            g_hash_table_remove(publisher_info, room_id);
         }
-
-        g_hash_table_remove(publisher_info, room_id);
     }
     janus_mutex_unlock(&publisher_info_mutex);
     
@@ -7661,8 +7661,8 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
         GHashTable* tmpTable = g_hash_table_lookup(publisher_info, publish->room->room_id);
         gint64 jsid = wbx_get_janus_session(publish->session);
         
-        JANUS_LOG(LOG_INFO, "willche in wbx_table_add_publisher room id = %s , room publisher table = %lu\n", 
-            publish->room->room_id, tmpTable);
+        JANUS_LOG(LOG_INFO, "willche in wbx_table_add_publisher room id = %s , room publisher table = %lu, jsid = %lu\n", 
+            publish->room->room_id, tmpTable, jsid);
         wbx_publisher_info* info = g_hash_table_lookup(tmpTable, &jsid);
 
         if(info)
@@ -7698,7 +7698,7 @@ static int wbx_table_del_publisher(wxs_videoroom_publisher* publish)
 
         if(!info)
         {
-            JANUS_LOG(LOG_ERR, "willche in wbx_table_del_publisher publisher not added");
+            JANUS_LOG(LOG_ERR, "willche in wbx_table_del_publisher publisher not added jsid = %lu\n", jsid);
             janus_mutex_unlock(&publisher_info_mutex);
             return ret;
         }
