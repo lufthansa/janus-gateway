@@ -7635,6 +7635,9 @@ static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomde
 		videoroom->require_pvtid ? "required" : "optional");
 
     GHashTable* tmp = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free, (GDestroyNotify)wbx_publisher_info_value_free_callback);
+
+	JANUS_LOG(LOG_INFO, "willche in wbx_create_room room id = %s , room publisher table = %lu\n", room_id, tmp);
+
     g_hash_table_insert(publisher_info, g_strdup(room_id), tmp);
 
 	return videoroom;
@@ -7650,12 +7653,15 @@ static gint64 wbx_get_janus_session(wxs_videoroom_session* session)
 
 static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
 {
-	JANUS_LOG(LOG_INFO, "willche in wbx_table_add_publisher room id = %s \n", publish->display);
+	JANUS_LOG(LOG_INFO, "willche in wbx_table_add_publisher publish display = %s \n", publish->display);
 	janus_mutex_lock(&publisher_info_mutex);
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
     {
         GHashTable* tmpTable = g_hash_table_lookup(publisher_info, publish->room->room_id);
+        
+        JANUS_LOG(LOG_INFO, "willche in wbx_table_add_publisher room id = %s , room publisher table = %lu\n", 
+            publish->room->room_id, tmpTable);
         wbx_publisher_info* info = g_hash_table_lookup(tmpTable, wbx_get_janus_session(publish->session));
 
         if(info)
