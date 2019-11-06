@@ -1589,10 +1589,7 @@ static int wbx_kill_ffmpeg(wxs_videoroom_publisher* publisher, const char* room_
 static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server, int port_index);
 static int wbx_check_ffmpeg(const char* room_id);
 static void wbx_print_ffmpegps();
-static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
 static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
-static int wbx_remove_room(const char* room_id);
-static wxs_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
 static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
 static void wbx_print_rooms();
 static int wbx_get_roomid(json_t *room, char* ret, int len);
@@ -5364,15 +5361,15 @@ static void *wxs_videoroom_handler(void *data) {
 		json_t *event = NULL;
 		gboolean sdp_update = FALSE;
 
-        gint64 ***** session_id = (gint64*****)session;
-		JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler text = %s, session_id = %lu\n", request_text, (gint64)*****session_id);
+        gint64 jsession_id = wbx_get_janus_session(session);
+		JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler text = %s, session_id = %lu\n", request_text, jsession_id;
 
 		if(json_object_get(msg->jsep, "update") != NULL)
 			sdp_update = json_is_true(json_object_get(msg->jsep, "update"));
 		/* 'create' and 'destroy' are handled synchronously: what kind of participant is this session referring to? */
 		if(session->participant_type == wxs_videoroom_p_type_none) 
         {
-			JANUS_LOG(LOG_VERB, "Configuring new participant\n");
+			JANUS_LOG(LOG_INFO, "Configuring new participant\n");
 			/* Not configured yet, we need to do this now */
 			if(strcasecmp(request_text, "join") && strcasecmp(request_text, "joinandconfigure")) {
 				JANUS_LOG(LOG_ERR, "Invalid request on unconfigured participant\n");
@@ -5885,6 +5882,8 @@ static void *wxs_videoroom_handler(void *data) {
 		} 
         else if(session->participant_type == wxs_videoroom_p_type_publisher) 
         {
+            JANUS_LOG(LOG_INFO, "wxs_videoroom_handler wxs_videoroom_p_type_publisher\n");
+            
 			/* Handle this publisher */
 			participant = wxs_videoroom_session_get_publisher(session);
 			if(participant == NULL) {
@@ -6152,6 +6151,7 @@ static void *wxs_videoroom_handler(void *data) {
 		} 
         else if(session->participant_type == wxs_videoroom_p_type_subscriber) 
         {
+            JANUS_LOG(LOG_INFO, "wxs_videoroom_handler wxs_videoroom_p_type_subscriber\n");
 			/* Handle this subscriber */
 			wxs_videoroom_subscriber *subscriber = (wxs_videoroom_subscriber *)session->participant;
 			if(subscriber == NULL) {
@@ -6551,7 +6551,7 @@ static void *wxs_videoroom_handler(void *data) {
 		}
 
 		/* Prepare JSON event */
-		JANUS_LOG(LOG_VERB, "Preparing JSON event as a reply\n");
+		JANUS_LOG(LOG_INFO, "Preparing JSON event as a reply\n");
 		/* Any SDP or update to handle? */
 		const char *msg_sdp_type = json_string_value(json_object_get(msg->jsep, "type"));
 		const char *msg_sdp = json_string_value(json_object_get(msg->jsep, "sdp"));
@@ -6913,9 +6913,12 @@ static void *wxs_videoroom_handler(void *data) {
 		}
 		wxs_videoroom_message_free(msg);
 
+        JANUS_LOG(LOG_INFO, "wxs_videoroom_handler continue\n";
+
 		continue;
 
 error:
+        JANUS_LOG(LOG_INFO, "wxs_videoroom_handler error case\n";
 		{
 			/* Prepare JSON error event */
 			json_t *event = json_object();
@@ -7521,10 +7524,10 @@ static int wbx_remove_room(const char* room_id)
 
     // clear all publish in room
     janus_mutex_lock(&publisher_info_mutex);
-	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
+	int ret = g_hash_table_contains(publisher_info, room_id);
     if(ret)
     {
-        GHashTable* tmpTable = (publisher_info, publish->room->room_id);
+        GHashTable* tmpTable = (publisher_info, room_id);
         if(tmpTable)
         {
             g_hash_table_destroy(tmpTable);
@@ -7612,7 +7615,6 @@ static gint64 wbx_get_janus_session(wxs_videoroom_session* session)
 
 static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
 {
-    intt ret = -1;
 	janus_mutex_lock(&publisher_info_mutex);
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
@@ -7641,8 +7643,6 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
 
 static int wbx_table_del_publisher(wxs_videoroom_publisher* publish)
 {
-    int ret = -1;
-
     janus_mutex_lock(&publisher_info_mutex);
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
@@ -7695,7 +7695,7 @@ static int wbx_sync_handler_change_stream(wxs_videoroom_session *session,
     int ret = - 1;
     
     // producer want pull present`s media data
-    wxs_videoroom_publisher publisher = wxs_videoroom_session_get_publisher(session);
+    wxs_videoroom_publisher* publisher = wxs_videoroom_session_get_publisher(session);
     if(publisher)
     {
         if(publisher->publisher_role != wxs_videoroom_p_role_producer)
@@ -7706,10 +7706,10 @@ static int wbx_sync_handler_change_stream(wxs_videoroom_session *session,
             return ret;
         }
     
-        wxs_videoroom room = publisher->room;
+        wxs_videoroom* room = publisher->room;
         
-        json_t *presentid = json_object_get(root, "presentid");
-        json_t *publishtype = json_object_get(root, "publish");
+        json_t *presentid = json_object_get(message, "presentid");
+        json_t *publishtype = json_object_get(message, "publish");
         if(presentid == NULL || publishtype == NULL) 
         {
             JANUS_LOG(LOG_ERR, "pull stream presentid == NULL || publishtype == NULL\n");
@@ -7723,7 +7723,7 @@ static int wbx_sync_handler_change_stream(wxs_videoroom_session *session,
         GHashTableIter iter;
         gpointer value;
         g_hash_table_iter_init(&iter, room->participants);
-        while (participant->room && !g_atomic_int_get(&room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) 
+        while (!g_atomic_int_get(&room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) 
         {
             wxs_videoroom_publisher *p = value;
             if(p && p->session && p->user_id == present_id) {
@@ -7767,9 +7767,9 @@ static int wbx_sync_handler_change_stream(wxs_videoroom_session *session,
 static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session, 
             json_t *message, json_t* response, int *error_code, char *error_cause)
 {
-    ret = -1;
+    int ret = -1;
     
-    wxs_videoroom_publisher publisher = wxs_videoroom_session_get_publisher(session);
+    wxs_videoroom_publisher* publisher = wxs_videoroom_session_get_publisher(session);
     if(publisher)
     {
         if(publisher->publisher_role != wxs_videoroom_p_role_asker)
@@ -7780,17 +7780,17 @@ static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session
             return ret;
         }
     
-        wxs_videoroom room = publisher->room;
+        wxs_videoroom* room = publisher->room;
         
         wxs_videoroom_publisher *p = room->producer;
         json_t* beaskercmd = json_object();
         json_object_set_new(response, "videoroom", json_string("success"));
-        json_object_set_new(response, "room", json_integer(publisher->room_id);
+        json_object_set_new(response, "room", json_integer(publisher->room_id));
     
         json_object_set_new(beaskercmd, "videoroom", json_string("wantbeasker"));
         json_object_set_new(beaskercmd, "userid", json_integer(publisher->user_id));
-        json_object_set_new(beaskercmd, "sessionid", json_integer(wbx_get_janus_session(publisher->session));
-        json_object_set_new(beaskercmd, "room", json_integer(publisher->room_id);
+        json_object_set_new(beaskercmd, "sessionid", json_integer(wbx_get_janus_session(publisher->session)));
+        json_object_set_new(beaskercmd, "room", json_integer(publisher->room_id));
         JANUS_LOG(LOG_INFO, "Notifying participant %"SCNu64" (%s)\n", p->user_id, p->display ? p->display : "??");
         
         // notify producer a akser want be a current asker
@@ -7816,7 +7816,7 @@ static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *sessio
 {
     int ret = -1;
 
-    wxs_videoroom_publisher publisher = wxs_videoroom_session_get_publisher(session);
+    wxs_videoroom_publisher* publisher = wxs_videoroom_session_get_publisher(session);
     if(publisher)
     {
         if(publisher->publisher_role != wxs_videoroom_p_role_producer)
@@ -7837,12 +7837,12 @@ static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *sessio
         }
         gint64 publisher_id = json_integer_value(publisherid);
 
-        wxs_videoroom room = publisher->room;
+        wxs_videoroom* room = publisher->room;
     
         GHashTableIter iter;
         gpointer value;
         g_hash_table_iter_init(&iter, room->participants);
-        while (participant->room && !g_atomic_int_get(&room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) 
+        while (!g_atomic_int_get(&room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) 
         {
             wxs_videoroom_publisher *p = value;
             if(p && p->session && p->user_id == publisher_id) {
@@ -7883,7 +7883,7 @@ static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *me
 {
     int ret = -1;
 
-    wxs_videoroom_publisher publisher = wxs_videoroom_session_get_publisher(session);
+    wxs_videoroom_publisher* publisher = wxs_videoroom_session_get_publisher(session);
     if(publisher)
     {
         if(publisher->publisher_role != wxs_videoroom_p_role_producer)
@@ -7903,7 +7903,7 @@ static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *me
             return ret;
         }
         gint64 asker_id = json_integer_value(askerid);
-        wxs_videoroom room = publisher->room;
+        wxs_videoroom* room = publisher->room;
 
         if(room->producer_share == NULL || room->producer_share->session == NULL)
         {
@@ -7916,7 +7916,7 @@ static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *me
         GHashTableIter iter;
         gpointer value;
         g_hash_table_iter_init(&iter, room->participants);
-        while (participant->room && !g_atomic_int_get(&room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) 
+        while (!g_atomic_int_get(&room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) 
         {
             wxs_videoroom_publisher *p = value;
             if(p && p->session && p->user_id == asker_id) {
