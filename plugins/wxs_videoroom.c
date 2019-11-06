@@ -7659,10 +7659,11 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
     if(ret)
     {
         GHashTable* tmpTable = g_hash_table_lookup(publisher_info, publish->room->room_id);
+        gint64 jsid = wbx_get_janus_session(publish->session);
         
         JANUS_LOG(LOG_INFO, "willche in wbx_table_add_publisher room id = %s , room publisher table = %lu\n", 
             publish->room->room_id, tmpTable);
-        wbx_publisher_info* info = g_hash_table_lookup(tmpTable, wbx_get_janus_session(publish->session));
+        wbx_publisher_info* info = g_hash_table_lookup(tmpTable, &jsid);
 
         if(info)
         {
@@ -7674,7 +7675,7 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
         info = g_malloc0(sizeof(wbx_publisher_info));
         info->private_id = publish->pvt_id;
         info->user_id = publish->user_id;
-        g_hash_table_insert(tmpTable, wbx_get_janus_session(publish->session), info);
+        g_hash_table_insert(tmpTable, &jsid, info);
 
         ret = 0;
     }
@@ -7691,8 +7692,9 @@ static int wbx_table_del_publisher(wxs_videoroom_publisher* publish)
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
     {
+        gint64 jsid = wbx_get_janus_session(publish->session);
         GHashTable* tmpTable = g_hash_table_lookup(publisher_info, publish->room->room_id);
-        wbx_publisher_info* info = g_hash_table_lookup(tmpTable, wbx_get_janus_session(publish->session));
+        wbx_publisher_info* info = g_hash_table_lookup(tmpTable, &jsid);
 
         if(!info)
         {
@@ -7701,7 +7703,7 @@ static int wbx_table_del_publisher(wxs_videoroom_publisher* publish)
             return ret;
         }
 
-        g_hash_table_remove(tmpTable, wbx_get_janus_session(publish->session));
+        g_hash_table_remove(tmpTable, &jsid);
 
         ret = 0;
     }
