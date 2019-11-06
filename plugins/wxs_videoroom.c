@@ -1305,11 +1305,13 @@ typedef struct wxs_videoroom_message {
 static GAsyncQueue *messages = NULL;
 static wxs_videoroom_message exit_message;
 
+struct wxs_videoroom_publisher;
+
 typedef struct wxs_videoroom {
     // willche add : one junus session has many room session. we need janus session id to decide if a new join cmd can accept or not
 	guint64 producer_id;	/* Producer`s presenter janus session ID in the room */
-    wxs_videoroom_publisher* producer;
-    wxs_videoroom_publisher* producer_share; /* the publisher from producer for asker subscribe */
+    struct wxs_videoroom_publisher* producer;
+    struct wxs_videoroom_publisher* producer_share; /* the publisher from producer for asker subscribe */
 	guint64 asker_id;	    /* asker session ID in the room */
     // willche end
     
@@ -1548,6 +1550,88 @@ typedef struct wxs_videoroom_rtp_relay_packet {
 } wxs_videoroom_rtp_relay_packet;
 
 
+
+
+// wilche start wbx
+static GHashTable *ffmpegps;
+static GHashTable *publisher_info;  // <roomid, GHashTable<janus_session_id, wbx_publisher_info>>
+
+static GQueue  *wbx_used_port;
+static GQueue  *wbx_free_port;
+static const int wbx_publisher_port_start = 40000;
+static const int wbx_publisher_port_step = 10;
+#define wbx_publisher_max_count 100
+static int wbx_publisher_count = 0;
+static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
+static janus_mutex publisher_info_mutex = JANUS_MUTEX_INITIALIZER;
+static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
+#define MAX_PATH_LEN 512 
+static int wbx_port_map[wbx_publisher_max_count];
+
+typedef struct wbx_ffmpeg_progress {
+	gint64 sdp_sessid;
+	gint64 user_id;
+	pid_t pid;
+	int port_index;
+} wbx_ffmpeg_progress;
+
+// all publish id
+typedef struct wbx_publisher_info {
+	gint64 private_id;
+	gint64 user_id;
+} wbx_publisher_info;
+
+
+static void wbx_init();
+static int wbx_get_port();
+static int wbx_retrun_port(int index);
+static int wbx_kill_ffmpeg(wxs_videoroom_publisher* publisher, const char* room_id, guint64 user_id, gboolean return_port);
+static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server, int port_index);
+static int wbx_check_ffmpeg(const char* room_id);
+static void wbx_print_ffmpegps();
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
+static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
+static int wbx_remove_room(const char* room_id);
+static wxs_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
+static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
+static void wbx_print_rooms();
+static int wbx_get_roomid(json_t *room, char* ret, int len);
+static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
+static void wbx_publisher_info_free_callback(GHashTable *gtb);
+static void wbx_publisher_info_value_free_callback(publisher_info *pi);
+static int wbx_remove_room(const char* room_id);
+static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomdesc, const gchar* secret);
+static gint64 wbx_get_janus_session(wxs_videoroom_session* session);
+static int wbx_table_add_publisher(wxs_videoroom_publisher* publish);
+static int wbx_table_del_publisher(wxs_videoroom_publisher* publish);
+static void wbx_check_auth(const char* token);
+static int wbx_noti_publisher(wxs_videoroom* videoroom, const char* noti);
+static int wbx_get_publisher_list(wxs_videoroom_publisher* publisher);
+static int wbx_sync_handler_change_stream(wxs_videoroom_session *session, 
+            json_t *message, json_t* response, int *error_code, char *error_cause);
+static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session, 
+            json_t *message, json_t* response, int *error_code, char *error_cause);
+static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *session, 
+            json_t *message, json_t* response, int *error_code, char *error_cause);
+static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *message, json_t* response,
+        	int *error_code, char *error_cause);
+// end wxs
+#if 0
+// ffmpeg
+#include <libavformat/avformat.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/time.h>
+
+// TODO: 根据roomid扩展
+AVFormatContext* output_format_context = NULL;
+
+void ffmpeg_prepare(gchar* room_id);
+int ffmpeg_push_stream(AVPacket* pkt);
+// end ffmpeg
+#endif
+
+
+
 /* Freeing stuff */
 static void wxs_videoroom_subscriber_destroy(wxs_videoroom_subscriber *s) {
 	JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_subscriber_destroy \n");
@@ -1755,89 +1839,6 @@ static void wxs_videoroom_reqfir(wxs_videoroom_publisher *publisher, const char 
 
 #define JANUS_VIDEOROOM_ERROR_DONT_CREATE		8888
 #define JANUS_VIDEOROOM_ERROR_DONT_DESTROY		9999
-
-
-
-
-
-// wilche start wbx
-static GHashTable *ffmpegps;
-static GHashTable *publisher_info;  // <roomid, GHashTable<janus_session_id, wbx_publisher_info>>
-
-static GQueue  *wbx_used_port;
-static GQueue  *wbx_free_port;
-static const int wbx_publisher_port_start = 40000;
-static const int wbx_publisher_port_step = 10;
-#define wbx_publisher_max_count 100
-static int wbx_publisher_count = 0;
-static janus_mutex ffmpegps_mutex = JANUS_MUTEX_INITIALIZER;
-static janus_mutex publisher_info_mutex = JANUS_MUTEX_INITIALIZER;
-static janus_mutex wbx_port_mutex = JANUS_MUTEX_INITIALIZER;
-#define MAX_PATH_LEN 512 
-static int wbx_port_map[wbx_publisher_max_count];
-
-typedef struct wbx_ffmpeg_progress {
-	gint64 sdp_sessid;
-	gint64 user_id;
-	pid_t pid;
-	int port_index;
-} wbx_ffmpeg_progress;
-
-// all publish id
-typedef struct wbx_publisher_info {
-	gint64 private_id;
-	gint64 user_id;
-} wbx_publisher_info;
-
-
-static void wbx_init();
-static int wbx_get_port();
-static int wbx_retrun_port(int index);
-static int wbx_kill_ffmpeg(wxs_videoroom_publisher* publisher, const char* room_id, guint64 user_id, gboolean return_port);
-static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 user_id, int video_port, int audio_port, int width, int height, const char* const rtmp_server, int port_index);
-static int wbx_check_ffmpeg(const char* room_id);
-static void wbx_print_ffmpegps();
-static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
-static void wbx_print_ffmpegps_callback(gpointer key, gpointer value, gpointer data);
-static int wbx_remove_room(const char* room_id);
-static wxs_videoroom * wbx_create_room(const char* room_id, const char* roomdesc);
-static void wbx_print_rooms_callback(gpointer key, gpointer value, gpointer data);
-static void wbx_print_rooms();
-static int wbx_get_roomid(json_t *room, char* ret, int len);
-static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
-static void wbx_publisher_info_free_callback(GHashTable *gtb);
-static void wbx_publisher_info_value_free_callback(publisher_info *pi);
-static int wbx_remove_room(const char* room_id);
-static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomdesc, const gchar* secret);
-static gint64 wbx_get_janus_session(wxs_videoroom_session* session);
-static int wbx_table_add_publisher(wxs_videoroom_publisher* publish);
-static int wbx_table_del_publisher(wxs_videoroom_publisher* publish);
-static void wbx_check_auth(const char* token);
-static int wbx_noti_publisher(wxs_videoroom* videoroom, const char* noti);
-static int wbx_get_publisher_list(wxs_videoroom_publisher* publisher);
-static int wbx_sync_handler_change_stream(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause);
-static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause);
-static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause);
-static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *message, json_t* response,
-        	int *error_code, char *error_cause);
-// end wxs
-#if 0
-// ffmpeg
-#include <libavformat/avformat.h>
-#include <libavutil/mathematics.h>
-#include <libavutil/time.h>
-
-// TODO: 根据roomid扩展
-AVFormatContext* output_format_context = NULL;
-
-void ffmpeg_prepare(gchar* room_id);
-int ffmpeg_push_stream(AVPacket* pkt);
-// end ffmpeg
-#endif
-
 
 
 static guint32 wxs_videoroom_rtp_forwarder_add_helper(wxs_videoroom_publisher *p,
