@@ -7207,7 +7207,7 @@ static int wbx_check_ffmpeg(const char * room_id)
 
 // stop a ffmpeg progress
 // if client change width and heigth, don`t return port
-static int wbx_kill_ffmpeg(wxs_videoroom_publisher* publisher, const char* room_id, guint64 user_id, gboolean return_port)
+static int wbx_kill_ffmpeg(janus_videoroom_publisher* publisher, const char* room_id, guint64 user_id, gboolean return_port)
 {
     // TODO : only producer can kill ffmpeg
     
