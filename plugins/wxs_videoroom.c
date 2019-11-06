@@ -1758,6 +1758,8 @@ static void wxs_videoroom_reqfir(wxs_videoroom_publisher *publisher, const char 
 
 
 
+
+
 // wilche start wbx
 static GHashTable *ffmpegps;
 static GHashTable *publisher_info;  // <roomid, GHashTable<janus_session_id, wbx_publisher_info>>
@@ -1835,6 +1837,7 @@ void ffmpeg_prepare(gchar* room_id);
 int ffmpeg_push_stream(AVPacket* pkt);
 // end ffmpeg
 #endif
+
 
 
 static guint32 wxs_videoroom_rtp_forwarder_add_helper(wxs_videoroom_publisher *p,
