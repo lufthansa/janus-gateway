@@ -5387,7 +5387,10 @@ static void *wxs_videoroom_handler(void *data) {
 			// willche create room
 			json_t *room = json_object_get(root, "room");
 			if(room == 0)
+			{
+				janus_mutex_unlock(&rooms_mutex);
 				goto error;
+			}
 
             // willche : check if new join is producer, only producer can create room
             json_t *role = json_object_get(root, "role");
@@ -5395,6 +5398,7 @@ static void *wxs_videoroom_handler(void *data) {
             {
 				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
                 g_snprintf(error_cause, 512, "no role when join ");
+				janus_mutex_unlock(&rooms_mutex);
 				goto error;
             }
 			guint64 role_id = json_integer_value(role);
@@ -5402,6 +5406,7 @@ static void *wxs_videoroom_handler(void *data) {
             {
 				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
                 g_snprintf(error_cause, 512, "Only producer can create");
+				janus_mutex_unlock(&rooms_mutex);
 				goto error;
             }
             
@@ -5410,13 +5415,18 @@ static void *wxs_videoroom_handler(void *data) {
             int iret = wbx_get_roomid(room, room_id, 64);
             
 			JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler room_id = %s\n", room_id);
-			if(iret == 0)
+			if(iret == 0) 
+			{
+				janus_mutex_unlock(&rooms_mutex);
 				goto error;
+			}
+            
 			wbx_print_rooms();
 			videoroom = g_hash_table_lookup(rooms, room_id);
 			if(videoroom) 
 			{
 				JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler room_id = %s already exist\n", room_id);
+				janus_mutex_unlock(&rooms_mutex);
 				goto error;
 			}
 			json_t *secret = json_object_get(root, "sercret");
