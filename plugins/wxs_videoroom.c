@@ -5362,7 +5362,7 @@ static void *wxs_videoroom_handler(void *data) {
 		gboolean sdp_update = FALSE;
 
         gint64 jsession_id = wbx_get_janus_session(session);
-		JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler text = %s, session_id = %lu\n", request_text, jsession_id;
+		JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler text = %s, session_id = %lu\n", request_text, jsession_id);
 
 		if(json_object_get(msg->jsep, "update") != NULL)
 			sdp_update = json_is_true(json_object_get(msg->jsep, "update"));
@@ -6913,12 +6913,12 @@ static void *wxs_videoroom_handler(void *data) {
 		}
 		wxs_videoroom_message_free(msg);
 
-        JANUS_LOG(LOG_INFO, "wxs_videoroom_handler continue\n";
+        JANUS_LOG(LOG_INFO, "wxs_videoroom_handler continue\n");
 
 		continue;
 
 error:
-        JANUS_LOG(LOG_INFO, "wxs_videoroom_handler error case\n";
+        JANUS_LOG(LOG_INFO, "wxs_videoroom_handler error case\n");
 		{
 			/* Prepare JSON error event */
 			json_t *event = json_object();
