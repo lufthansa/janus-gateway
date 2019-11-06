@@ -5401,15 +5401,8 @@ static void *wxs_videoroom_handler(void *data) {
 				janus_mutex_unlock(&rooms_mutex);
 				goto error;
             }
-			guint64 role_id = json_integer_value(role);
-            if(role_id != wxs_videoroom_p_role_producer)
-            {
-				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
-                g_snprintf(error_cause, 512, "Only producer can create");
-				janus_mutex_unlock(&rooms_mutex);
-				goto error;
-            }
-            
+            guint64 role_id = json_integer_value(role);
+
 //			const char * room_id = json_string_value(room);
             char room_id[64] = {0};
             int iret = wbx_get_roomid(room, room_id, 64);
@@ -5426,18 +5419,35 @@ static void *wxs_videoroom_handler(void *data) {
 			if(videoroom) 
 			{
 				JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_handler room_id = %s already exist\n", room_id);
-				janus_mutex_unlock(&rooms_mutex);
-				goto error;
+                
+                if(role_id != wxs_videoroom_p_role_presenter && role_id != wxs_videoroom_p_role_asker)
+                {
+    				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    g_snprintf(error_cause, 512, "Only presenter or asker can join room");
+    				janus_mutex_unlock(&rooms_mutex);
+    				goto error;
+                }
 			}
-			json_t *secret = json_object_get(root, "sercret");
-            if(secret) {
-			    videoroom = wbx_create_room(room_id, room_id, json_string_value(secret));
-            } else {
-			    videoroom = wbx_create_room(room_id, room_id, 0);
+            else 
+            {
+                if(role_id != wxs_videoroom_p_role_producer)
+                {
+    				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    g_snprintf(error_cause, 512, "Only producer can create room");
+    				janus_mutex_unlock(&rooms_mutex);
+    				goto error;
+                }
+            
+       			json_t *secret = json_object_get(root, "sercret");
+                if(secret) {
+    			    videoroom = wbx_create_room(room_id, room_id, json_string_value(secret));
+                } else {
+    			    videoroom = wbx_create_room(room_id, room_id, 0);
+                }
+    			g_hash_table_insert(rooms, strdup(room_id), videoroom);
             }
-			g_hash_table_insert(rooms, strdup(room_id), videoroom);
-			// willche end create rooms
-			
+            // willche end create rooms
+            
 			error_code = wxs_videoroom_access_room(root, FALSE, TRUE, &videoroom, error_cause, sizeof(error_cause));
 			if(error_code != 0) {
 				janus_mutex_unlock(&rooms_mutex);
@@ -5448,9 +5458,27 @@ static void *wxs_videoroom_handler(void *data) {
 			janus_mutex_unlock(&rooms_mutex);
 			json_t *ptype = json_object_get(root, "ptype");
 			const char *ptype_text = json_string_value(ptype);
+            
 			if(!strcasecmp(ptype_text, "publisher")) 
             {
 				JANUS_LOG(LOG_VERB, "Configuring new publisher\n");
+                
+                // willche : set publisher to presenter or asker
+                json_t *role = json_object_get(root, "role");
+                if(role == NULL)
+                {
+					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    g_snprintf(error_cause, 512, "client need set role key");
+					goto error;
+                }
+				guint64 role_id = json_integer_value(role);
+                if(role_id != wxs_videoroom_p_role_presenter && role_id != wxs_videoroom_p_role_asker)
+                {
+					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    g_snprintf(error_cause, 512, "Only presenter or asker can join");
+					goto error;
+                }
+
 				JANUS_VALIDATE_JSON_OBJECT(root, publisher_parameters,
 					error_code, error_cause, TRUE,
 					JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
@@ -5595,8 +5623,10 @@ static void *wxs_videoroom_handler(void *data) {
                 // willche add producer
                 videoroom->producer = publisher;
                 // willche: set publisher to producer
-                publisher->publisher_role = wxs_videoroom_p_role_producer;
+                publisher->publisher_role = role_id;
                 videoroom->asker_id = 0;
+                
+                wbx_table_add_publisher(publisher);
                 
 				/* Done */
 				janus_mutex_lock(&session->mutex);
@@ -5722,6 +5752,8 @@ static void *wxs_videoroom_handler(void *data) {
 					janus_mutex_unlock(&videoroom->mutex);
 					goto error;
 				} else {
+
+                
                     // willche : only producer can sub all publish, current asker can only sub producer`s presenter.
                     // async handler, join as a sub cmd package will looks in the back of attached ret package.
                     // but actually join cmd is before attached ret.
@@ -6559,6 +6591,9 @@ static void *wxs_videoroom_handler(void *data) {
 			}
 		}
 
+
+
+
 		/* Prepare JSON event */
 		JANUS_LOG(LOG_INFO, "Preparing JSON event as a reply\n");
 		/* Any SDP or update to handle? */
@@ -6601,34 +6636,19 @@ static void *wxs_videoroom_handler(void *data) {
 				g_snprintf(error_cause, 512, "Unknown SDP type '%s'", msg_sdp_type);
 				goto error;
 			}
-			if(session->participant_type != wxs_videoroom_p_type_publisher) {
+			if(session->participant_type != wxs_videoroom_p_type_publisher) 
+            {
 				/* We shouldn't be here, we always offer ourselves */
 				JANUS_LOG(LOG_ERR, "Only publishers send offers\n");
 				error_code = JANUS_VIDEOROOM_ERROR_INVALID_SDP_TYPE;
 				g_snprintf(error_cause, 512, "Only publishers send offers");
 				goto error;
-			} else {
+			} 
+            else 
+            {
 				/* This is a new publisher: is there room? */
 				participant = wxs_videoroom_session_get_publisher(session);
 				wxs_videoroom *videoroom = participant->room;
-
-                // willche : set publisher to presenter or asker
-                json_t *role = json_object_get(root, "role");
-                if(role == NULL)
-                {
-					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
-                    g_snprintf(error_cause, 512, "client need set role key");
-					goto error;
-                }
-				guint64 role_id = json_integer_value(role);
-                if(role_id != wxs_videoroom_p_role_presenter && role_id != wxs_videoroom_p_role_asker)
-                {
-					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
-                    g_snprintf(error_cause, 512, "Only presenter or asker can join");
-					goto error;
-                }
-                participant->publisher_role = role_id;
-
                 
 				int count = 0;
 				GHashTableIter iter;
@@ -6873,9 +6893,6 @@ static void *wxs_videoroom_handler(void *data) {
 				/* How long will the Janus core take to push the event? */
 				g_atomic_int_set(&session->hangingup, 0);
 				gint64 start = janus_get_monotonic_time();
-
-                // willche add publisher to map
-                wbx_table_add_publisher(participant);
                 
 				int res = gateway->push_event(msg->handle, &wxs_videoroom_plugin, msg->transaction, event, jsep);
 				JANUS_LOG(LOG_VERB, "  >> Pushing event: %d (took %"SCNu64" us)\n", res, janus_get_monotonic_time()-start);
