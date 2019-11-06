@@ -5517,7 +5517,6 @@ static void *wxs_videoroom_handler(void *data) {
 				publisher->session = session;
 				publisher->room_id = g_strdup(videoroom->room_id);
 				publisher->room = videoroom;
-				videoroom = NULL;
 				publisher->user_id = user_id;
 				publisher->display = display_text ? g_strdup(display_text) : NULL;
 				publisher->sdp = NULL;		/* We'll deal with this later */
@@ -7625,6 +7624,7 @@ static gint64 wbx_get_janus_session(wxs_videoroom_session* session)
 
 static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
 {
+	JANUS_LOG(LOG_INFO, "willche in wbx_table_add_publisher room id = %s \n", publish->display);
 	janus_mutex_lock(&publisher_info_mutex);
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
@@ -7642,7 +7642,7 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
         info = g_malloc0(sizeof(wbx_publisher_info));
         info->private_id = publish->pvt_id;
         info->user_id = publish->user_id;
-        g_hash_table_insert(publisher_info, wbx_get_janus_session(publish->session), info);
+        g_hash_table_insert(tmpTable, wbx_get_janus_session(publish->session), info);
 
         ret = 0;
     }
@@ -7653,6 +7653,8 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
 
 static int wbx_table_del_publisher(wxs_videoroom_publisher* publish)
 {
+	JANUS_LOG(LOG_INFO, "willche in wbx_table_del_publisher room id = %s \n", publish->display);
+    
     janus_mutex_lock(&publisher_info_mutex);
 	int ret = g_hash_table_contains(publisher_info, publish->room->room_id);
     if(ret)
