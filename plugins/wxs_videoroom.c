@@ -1598,7 +1598,7 @@ static void wbx_print_rooms();
 static int wbx_get_roomid(json_t *room, char* ret, int len);
 static void wbx_ffmpeg_free_callback(wbx_ffmpeg_progress *ffmpegps);
 static void wbx_publisher_info_free_callback(GHashTable *gtb);
-static void wbx_publisher_info_value_free_callback(publisher_info *pi);
+static void wbx_publisher_info_value_free_callback(wbx_publisher_info *pi);
 static int wbx_remove_room(const char* room_id);
 static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomdesc, const gchar* secret);
 static gint64 wbx_get_janus_session(wxs_videoroom_session* session);
@@ -7506,7 +7506,7 @@ static void wbx_publisher_info_free_callback(GHashTable *gtb) {
 	JANUS_LOG(LOG_INFO, "willche out wbx_publisher_info_free_callback \n");
 }
 
-static void wbx_publisher_info_value_free_callback(publisher_info *pi) {
+static void wbx_publisher_info_value_free_callback(wbx_publisher_info *pi) {
 	g_free(pi);
 	JANUS_LOG(LOG_INFO, "willche out wbx_publisher_info_value_free_callback \n");
 }
