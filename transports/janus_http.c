@@ -1377,7 +1377,7 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
         
         JANUS_LOG(LOG_WARN, "*************** before incoming_request 11\n");
 		gateway->incoming_request(&janus_http_transport, ts, (void *)keepalive_id, FALSE, root, NULL);
-        JANUS_LOG(LOG_WARN, "*************** before incoming_request 11\n");
+        JANUS_LOG(LOG_WARN, "*************** after incoming_request 11\n");
         
 		/* Ok, go on */
 		if(handle_path) {
@@ -1390,8 +1390,10 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			ret = MHD_queue_response(connection, 302, response);
 			MHD_destroy_response(response);
 			g_free(location);
+            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler goto done 111\n");
 			goto done;
 		}
+        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 111222\n");
 		janus_mutex_lock(&sessions_mutex);
 		janus_http_session *session = g_hash_table_lookup(sessions, &session_id);
 		janus_mutex_unlock(&sessions_mutex);
@@ -1401,8 +1403,10 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			janus_http_add_cors_headers(msg, response);
 			ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
 			MHD_destroy_response(response);
+            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler goto done 222\n");
 			goto done;
 		}
+        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 111333\n");
 		janus_refcount_increase(&ts->ref);
 		janus_refcount_increase(&session->ref);
 		/* How many messages can we send back in a single response? (just one by default) */
@@ -1416,8 +1420,11 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			}
 		}
 		JANUS_LOG(LOG_VERB, "Session %"SCNu64" found... returning up to %d messages\n", session_id, max_events);
+        
 		/* Handle GET, taking the first message from the list */
+        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler before try pop\n");
 		json_t *event = g_async_queue_try_pop(session->events);
+        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler after try pop\n");
 		if(event != NULL) {
 			if(max_events == 1) {
 				/* Return just this message and leave */
@@ -1447,6 +1454,7 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		}
 		janus_refcount_decrease(&session->ref);
 		janus_refcount_decrease(&ts->ref);
+        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler goto done 333\n");
 		goto done;
 	}
 
