@@ -1253,6 +1253,10 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
         JANUS_LOG(LOG_INFO, "+++++++++++++++ out  janus_http_handler 33\n");
 		return ret;
 	}
+
+    
+    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 33333\n");
+    
 	JANUS_LOG(LOG_DBG, " ... parsing request...\n");
 	if(path != NULL && path[1] != NULL && strlen(path[1]) > 0) {
 		session_path = g_strdup(path[1]);
@@ -1292,6 +1296,7 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		payload = msg->payload;
 		JANUS_LOG(LOG_HUGE, "%s\n", payload);
 	}
+    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 333111\n");
 
 	/* Is this a generic request for info? */
 	if(session_path != NULL && !strcmp(session_path, "info")) {
@@ -1313,8 +1318,10 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		goto parsingdone;
 	}
 
+    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 333222\n");
 	/* Or maybe a long poll */
-	if(!strcasecmp(method, "GET") || !payload) {
+	if(!strcasecmp(method, "GET") || !payload) 
+    {
 		session_id = session_path ? g_ascii_strtoull(session_path, NULL, 10) : 0;
 		if(session_id < 1) {
 			JANUS_LOG(LOG_ERR, "Invalid session %s\n", session_path);
@@ -1367,7 +1374,11 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			json_object_set_new(root, "apisecret", json_string(secret));
 		if(token)
 			json_object_set_new(root, "token", json_string(token));
+        
+        JANUS_LOG(LOG_WARN, "*************** before incoming_request 11\n");
 		gateway->incoming_request(&janus_http_transport, ts, (void *)keepalive_id, FALSE, root, NULL);
+        JANUS_LOG(LOG_WARN, "*************** before incoming_request 11\n");
+        
 		/* Ok, go on */
 		if(handle_path) {
 			char *location = g_malloc(strlen(ws_path) + strlen(session_path) + 2);
@@ -1439,6 +1450,7 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		goto done;
 	}
 
+    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 44444\n");
 	json_error_t error;
 	/* Parse the JSON payload */
 	root = json_loads(payload, 0, &error);
@@ -1451,6 +1463,8 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		json_decref(root);
 		goto done;
 	}
+    
+JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 55555\n");
 
 parsingdone:
 	/* Check if we have session and handle identifiers, and how they were provided */
@@ -1481,7 +1495,11 @@ parsingdone:
 
 	/* Suspend the connection and pass the ball to the core */
 	JANUS_LOG(LOG_HUGE, "Forwarding request to the core (%p)\n", ts);
+    
+    JANUS_LOG(LOG_WARN, "*************** before incoming_request 22\n");
 	gateway->incoming_request(&janus_http_transport, ts, ts, FALSE, root, &error);
+    JANUS_LOG(LOG_WARN, "*************** after incoming_request 22\n");
+    
 	/* Wait for a response (but not forever) */
 #ifndef USE_PTHREAD_MUTEX
 	gint64 wakeup = janus_get_monotonic_time() + 10*G_TIME_SPAN_SECOND;
