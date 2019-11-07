@@ -594,6 +594,7 @@ static gpointer janus_sessions_watchdog(gpointer user_data) {
 
 
 janus_session *janus_session_create(guint64 session_id) {
+	JANUS_LOG(LOG_INFO, "willche in janus_session_create \n");
 	janus_session *session = NULL;
 	if(session_id == 0) {
 		while(session_id == 0) {
@@ -620,6 +621,7 @@ janus_session *janus_session_create(guint64 session_id) {
 	janus_mutex_lock(&sessions_mutex);
 	g_hash_table_insert(sessions, janus_uint64_dup(session->session_id), session);
 	janus_mutex_unlock(&sessions_mutex);
+	JANUS_LOG(LOG_INFO, "willche out janus_session_create \n");
 	return session;
 }
 
@@ -844,6 +846,8 @@ static void janus_request_ice_handle_answer(janus_ice_handle *handle, int audio,
 }
 
 int janus_process_incoming_request(janus_request *request) {
+    JANUS_LOG(LOG_INFO, "in janus_process_incoming_request\n");
+    
 	int ret = -1;
 	if(request == NULL) {
 		JANUS_LOG(LOG_ERR, "Missing request or payload to process, giving up...\n");
@@ -2958,7 +2962,9 @@ static void *janus_transport_requests(void *data) {
 	janus_request *request = NULL;
 	gboolean destroy = FALSE;
 	while(!g_atomic_int_get(&stop)) {
+        JANUS_LOG(LOG_INFO, "janus_transport_requests before pop\n");
 		request = g_async_queue_pop(requests);
+        JANUS_LOG(LOG_INFO, "janus_transport_requests after pop\n");
 		if(request == &exit_message)
 			break;
 		/* Should we process the request synchronously or with a task from the thread pool? */

@@ -1141,14 +1141,26 @@ janus_ice_handle *janus_ice_handle_create(void *core_session, const char *opaque
 }
 
 gint janus_ice_handle_attach_plugin(void *core_session, janus_ice_handle *handle, janus_plugin *plugin) {
+	JANUS_LOG(LOG_INFO, "in janus_ice_handle_attach_plugin \n");
 	if(core_session == NULL)
+	{
+        JANUS_LOG(LOG_ERR, "out janus_ice_handle_attach_plugin error 1\n");
 		return JANUS_ERROR_SESSION_NOT_FOUND;
+	}
 	janus_session *session = (janus_session *)core_session;
 	if(plugin == NULL)
+	{
+        JANUS_LOG(LOG_ERR, "out janus_ice_handle_attach_plugin error 2\n");
 		return JANUS_ERROR_PLUGIN_NOT_FOUND;
+	}
 	if(handle == NULL)
+	{
+        JANUS_LOG(LOG_ERR, "out janus_ice_handle_attach_plugin error 3\n");
 		return JANUS_ERROR_HANDLE_NOT_FOUND;
-	if(handle->app != NULL) {
+	}
+	if(handle->app != NULL) 
+    {
+        JANUS_LOG(LOG_ERR, "out janus_ice_handle_attach_plugin error 4\n");
 		/* This handle is already attached to a plugin */
 		return JANUS_ERROR_PLUGIN_ATTACH;
 	}
@@ -1161,6 +1173,7 @@ gint janus_ice_handle_attach_plugin(void *core_session, janus_ice_handle *handle
 	if(error) {
 		/* TODO Make error struct to pass verbose information */
 		g_free(session_handle);
+        JANUS_LOG(LOG_ERR, "out janus_ice_handle_attach_plugin create session error\n");
 		return error;
 	}
 	janus_refcount_init(&session_handle->ref, janus_ice_plugin_session_free);
@@ -1205,6 +1218,7 @@ gint janus_ice_handle_attach_plugin(void *core_session, janus_ice_handle *handle
 				handle->handle_id, terror->code, terror->message ? terror->message : "??");
 			janus_refcount_decrease(&handle->ref);	/* This is for the thread reference we just added */
 			janus_ice_handle_destroy(session, handle);
+            JANUS_LOG(LOG_ERR, "out janus_ice_handle_attach_plugin terror != NULL\n");
 			return -1;
 		}
 	}
@@ -1212,6 +1226,8 @@ gint janus_ice_handle_attach_plugin(void *core_session, janus_ice_handle *handle
 	if(janus_events_is_enabled())
 		janus_events_notify_handlers(JANUS_EVENT_TYPE_HANDLE,
 			session->session_id, handle->handle_id, "attached", plugin->get_package(), handle->opaque_id);
+
+	JANUS_LOG(LOG_INFO, "out janus_ice_handle_attach_plugin \n");
 	return 0;
 }
 
