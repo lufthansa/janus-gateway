@@ -390,8 +390,9 @@ static struct MHD_Daemon *janus_http_create_daemon(gboolean admin, char *path,
 
 	if(!secure) {
 		/* HTTP web server */
-		if(threads == 0) {
-			JANUS_LOG(LOG_VERB, "Using a thread per connection for the %s API %s webserver\n",
+		if(threads == 0) 
+        {
+			JANUS_LOG(LOG_INFO, "Using a thread per connection for the %s API %s webserver\n",
 				admin ? "Admin" : "Janus", secure ? "HTTPS" : "HTTP");
 			if(!interface && !ip) {
 				JANUS_LOG(LOG_VERB, "Binding to all interfaces for the %s API %s webserver\n",
@@ -430,8 +431,10 @@ static struct MHD_Daemon *janus_http_create_daemon(gboolean admin, char *path,
 					MHD_OPTION_SOCK_ADDR, ipv6 ? (struct sockaddr *)&addr6 : (struct sockaddr *)&addr,
 					MHD_OPTION_END);
 			}
-		} else {
-			JANUS_LOG(LOG_VERB, "Using a thread pool of size %"SCNi64" the %s API %s webserver\n", threads,
+		} 
+        else 
+		{
+			JANUS_LOG(LOG_INFO, "Using a thread pool of size %"SCNi64" the %s API %s webserver\n", threads,
 				admin ? "Admin" : "Janus", secure ? "HTTPS" : "HTTP");
 			if(!interface && !ip) {
 				/* Bind to all interfaces */
@@ -476,8 +479,9 @@ static struct MHD_Daemon *janus_http_create_daemon(gboolean admin, char *path,
 #endif
 
 		/* Start webserver */
-		if(threads == 0) {
-			JANUS_LOG(LOG_VERB, "Using a thread per connection for the %s API %s webserver\n",
+		if(threads == 0) 
+        {
+			JANUS_LOG(LOG_INFO, "Using a thread per connection for the %s API %s webserver\n",
 				admin ? "Admin" : "Janus", secure ? "HTTPS" : "HTTP");
 			if(!interface && !ip) {
 				/* Bind to all interfaces */
@@ -528,8 +532,10 @@ static struct MHD_Daemon *janus_http_create_daemon(gboolean admin, char *path,
 					MHD_OPTION_SOCK_ADDR, ipv6 ? (struct sockaddr *)&addr6 : (struct sockaddr *)&addr,
 					MHD_OPTION_END);
 			}
-		} else {
-			JANUS_LOG(LOG_VERB, "Using a thread pool of size %"SCNi64" the %s API %s webserver\n", threads,
+		}
+        else 
+        {
+			JANUS_LOG(LOG_INFO, "Using a thread pool of size %"SCNi64" the %s API %s webserver\n", threads,
 				admin ? "Admin" : "Janus", secure ? "HTTPS" : "HTTP");
 			if(!interface && !ip) {
 				/* Bind to all interfaces */
@@ -746,7 +752,6 @@ int janus_http_init(janus_transport_callbacks *callback, const char *config_path
 
 		/* Start with the Janus API web server now */
 		gint64 threads = 0;
-        JANUS_LOG(LOG_INFO, "janus_http_init work threads = %lu\n", threads);
 		item = janus_config_get(config, config_general, janus_config_type_item, "threads");
 		if(item && item->value) {
 			if(!strcasecmp(item->value, "unlimited")) {
@@ -763,6 +768,8 @@ int janus_http_init(janus_transport_callbacks *callback, const char *config_path
 				}
 			}
 		}
+        
+        JANUS_LOG(LOG_INFO, "janus_http_init work threads = %lu\n", threads);
 		item = janus_config_get(config, config_general, janus_config_type_item, "http");
 		if(!item || !item->value || !janus_is_true(item->value)) {
 			JANUS_LOG(LOG_WARN, "HTTP webserver disabled\n");
