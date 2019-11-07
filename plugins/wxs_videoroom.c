@@ -1291,9 +1291,10 @@ typedef enum wxs_videoroom_p_type {
 
 typedef enum wxs_videoroom_p_role {
 	wxs_videoroom_p_role_none = 0,
-	wxs_videoroom_p_role_producer,			
-	wxs_videoroom_p_role_presenter,
-	wxs_videoroom_p_role_asker,
+	wxs_videoroom_p_role_producer,              // join as producer
+	wxs_videoroom_p_role_presenter,             //
+	wxs_videoroom_p_role_asker,                 //
+	wxs_videoroom_p_role_producer_presenter,    // the producer's presenter for asker to sub
 } wxs_videoroom_p_role;
 
 typedef struct wxs_videoroom_message {
@@ -1308,11 +1309,14 @@ static wxs_videoroom_message exit_message;
 struct wxs_videoroom_publisher;
 
 typedef struct wxs_videoroom {
+    
     // willche add : one junus session has many room session. we need janus session id to decide if a new join cmd can accept or not
-	guint64 producer_id;	/* Producer`s presenter janus session ID in the room */
+	guint64 asker_id;	        /* current asker session ID in the room */
+	guint64 producer_id;	    /* Producer`s janus session ID in the room */
+	guint64 producer_share_id;	/* Producer`s presenter janus session ID in the room */
+    struct wxs_videoroom_publisher* asker;
     struct wxs_videoroom_publisher* producer;
     struct wxs_videoroom_publisher* producer_share; /* the publisher from producer for asker subscribe */
-	guint64 asker_id;	    /* asker session ID in the room */
     // willche end
     
 	gchar *room_id;			/* Unique room ID */
@@ -2496,11 +2500,22 @@ static void wxs_videoroom_notify_participants(wxs_videoroom_publisher *participa
 	/* participant->room->mutex has to be locked. */
 	if(participant->room == NULL)
 		return;
+    
 	GHashTableIter iter;
 	gpointer value;
 	g_hash_table_iter_init(&iter, participant->room->participants);
 	while (participant->room && !g_atomic_int_get(&participant->room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) {
 		wxs_videoroom_publisher *p = value;
+        
+        if(p->publisher_role == wxs_videoroom_p_role_presenter)
+            continue;
+
+        if(p->publisher_role == wxs_videoroom_p_role_asker)
+        {
+            if(participant->publisher_role != wxs_videoroom_p_role_producer_presenter)
+                continue;
+        }
+        
 		if(p && p->session && p != participant) {
 			JANUS_LOG(LOG_VERB, "Notifying participant %"SCNu64" (%s)\n", p->user_id, p->display ? p->display : "??");
 			int ret = gateway->push_event(p->session->handle, &wxs_videoroom_plugin, NULL, msg, NULL);
@@ -2509,6 +2524,7 @@ static void wxs_videoroom_notify_participants(wxs_videoroom_publisher *participa
 	}
 }
 
+// only called when publisher joined, suber or listerner not call this
 static void wxs_videoroom_participant_joining(wxs_videoroom_publisher *p) {
 	JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_participant_joining \n");
 	/* we need to check if the room still exists, may have been destroyed already */
@@ -5370,6 +5386,7 @@ static void *wxs_videoroom_handler(void *data) {
 
 		if(json_object_get(msg->jsep, "update") != NULL)
 			sdp_update = json_is_true(json_object_get(msg->jsep, "update"));
+        
 		/* 'create' and 'destroy' are handled synchronously: what kind of participant is this session referring to? */
 		if(session->participant_type == wxs_videoroom_p_type_none) 
         {
@@ -5396,7 +5413,6 @@ static void *wxs_videoroom_handler(void *data) {
 				goto error;
 			}
 
-            // willche : check if new join is producer, only producer can create room
             json_t *role = json_object_get(root, "role");
             if(role == NULL)
             {
@@ -5433,8 +5449,9 @@ static void *wxs_videoroom_handler(void *data) {
                 }
 #endif
 			}
-            else    // if room is not exist, only producer can create room.
+            else    
             {
+                // if room is not exist, only producer can create room.
                 if(role_id != wxs_videoroom_p_role_producer)
                 {
     				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
@@ -5454,6 +5471,13 @@ static void *wxs_videoroom_handler(void *data) {
     			g_hash_table_insert(rooms, strdup(room_id), videoroom);
             }
             // willche end create rooms
+
+            if(role_id == wxs_videoroom_p_role_producer)
+            {
+                // TODO: check if room already have a producer
+                // if have, check token to kick old producer or reject this producer.
+                // this situation happens when producer rejoin after producer droped down or crashed.
+            }
             
 			error_code = wxs_videoroom_access_room(root, FALSE, TRUE, &videoroom, error_cause, sizeof(error_cause));
 			if(error_code != 0) {
@@ -5640,10 +5664,14 @@ static void *wxs_videoroom_handler(void *data) {
 				}
 
                 // willche add producer
-                videoroom->producer = publisher;
-                // willche: set publisher to producer
+                if(role_id == wxs_videoroom_p_role_producer)
+                {
+                    // willche: set publisher to producer
+                    videoroom->producer = publisher;
+                    videoroom->producer_id = wbx_get_janus_session(session);
+                }
+                
                 publisher->publisher_role = role_id;
-                videoroom->asker_id = 0;
                 
                 wbx_table_add_publisher(publisher);
                 
@@ -5661,6 +5689,7 @@ static void *wxs_videoroom_handler(void *data) {
 				janus_refcount_increase(&publisher->ref);
 				g_hash_table_insert(publisher->room->participants, janus_uint64_dup(publisher->user_id), publisher);
 				g_hash_table_iter_init(&iter, publisher->room->participants);
+                
 				while (!g_atomic_int_get(&publisher->room->destroyed) && g_hash_table_iter_next(&iter, NULL, &value)) {
 					wxs_videoroom_publisher *p = value;
 					if(p == publisher || !p->sdp || !p->session->started) {
@@ -5780,10 +5809,13 @@ static void *wxs_videoroom_handler(void *data) {
                     //     to judge if this janus session can sub.
                     gint64 janus_session_id = wbx_get_janus_session(session);
                     gint64 target_session_id = wbx_get_janus_session(publisher->session);
-                    if((janus_session_id != videoroom->producer_id && janus_session_id != videoroom->asker_id)
-                        || (janus_session_id == videoroom->asker_id && target_session_id != videoroom->producer_id))
+                    if(
+                        // only current asker and producer can sub 
+                        (janus_session_id != videoroom->asker_id && janus_session_id != videoroom->producer_id)
+                        // current asker can only ask producer presenter
+                        || (janus_session_id == videoroom->asker_id && target_session_id != videoroom->producer_share_id))
                     {
-    					JANUS_LOG(LOG_ERR, "Invalid role only producer can sub all publisher, asker can only sub producer`s present\n");
+    					JANUS_LOG(LOG_ERR, "Invalid role only producer can sub all publisher, current asker can only sub producer`s present\n");
                         error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
     					g_snprintf(error_cause, 512, "Invalid role only producer can sub all publish, asker can only sub producer");
                         janus_mutex_unlock(&videoroom->mutex);
@@ -7631,8 +7663,14 @@ static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomde
 	videoroom->private_ids = g_hash_table_new(NULL, NULL);
 	videoroom->check_allowed = FALSE;
 	videoroom->allowed = g_hash_table_new_full(g_str_hash, g_str_equal, (GDestroyNotify)g_free, NULL);
+
+    videoroom->asker = NULL;
     videoroom->producer = NULL;
     videoroom->producer_share = NULL;
+
+    videoroom->producer_id = 0;
+    videoroom->producer_share_id = 0;
+    videoroom->asker_id = 0;
 
 	char audio_codecs[100], video_codecs[100];
 	wxs_videoroom_codecstr(videoroom, audio_codecs, video_codecs, sizeof(audio_codecs), "|");
@@ -7902,6 +7940,15 @@ static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *sessio
         {
             wxs_videoroom_publisher *p = value;
             if(p && p->session && p->user_id == publisher_id) {
+                
+                if(p->publisher_role != wxs_videoroom_p_role_producer_presenter) 
+                {
+                    JANUS_LOG(LOG_ERR, "set producer presenter target publisher is not producer presenter\n");
+                    *error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    g_snprintf(error_cause, 512, "set producer presenter target publisher is not producer presenter");
+                    return ret;
+                }
+
                 response = json_object();
                 json_object_set_new(response, "videoroom", json_string("success"));
                 json_object_set_new(response, "room", json_string(publisher->room_id));
@@ -7911,7 +7958,7 @@ static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *sessio
                 
                 room->producer_share = p;
                 // add producer id
-                room->producer_id = wbx_get_janus_session(p->session);
+                room->producer_share_id = wbx_get_janus_session(p->session);
                 
                 JANUS_LOG(LOG_INFO, "Notifying participant %"SCNu64" (%s)\n", p->user_id, p->display ? p->display : "??");                
                 return 0;
