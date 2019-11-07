@@ -2459,9 +2459,13 @@ void wxs_videoroom_create_session(janus_plugin_session *handle, int *error) {
 	janus_mutex_init(&session->mutex);
 	janus_refcount_init(&session->ref, wxs_videoroom_session_free);
 
+	JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_create_session 11 \n");
 	janus_mutex_lock(&sessions_mutex);
+	JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_create_session 22 \n");
 	g_hash_table_insert(sessions, handle, session);
+	JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_create_session 33 \n");
 	janus_mutex_unlock(&sessions_mutex);
+	JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_create_session 44 \n");
 
 	return;
 }
@@ -5470,19 +5474,25 @@ static void *wxs_videoroom_handler(void *data) {
                 json_t *role = json_object_get(root, "role");
                 if(role == NULL)
                 {
-					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+					janus_mutex_unlock(&videoroom->mutex);
+					janus_refcount_decrease(&videoroom->ref);
+                    error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
                     g_snprintf(error_cause, 512, "client need set role key");
 					goto error;
                 }
 				guint64 role_id = json_integer_value(role);
                 if(role_id != wxs_videoroom_p_role_presenter && role_id != wxs_videoroom_p_role_asker)
                 {
-					//error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+                    //janus_mutex_unlock(&videoroom->mutex);
+					//janus_refcount_decrease(&videoroom->ref);
+                    //error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
                     //g_snprintf(error_cause, 512, "Only presenter or asker can join");
 					//goto error;
                 }
                 if(role_id == wxs_videoroom_p_role_none)
                 {
+                    janus_mutex_unlock(&videoroom->mutex);
+					janus_refcount_decrease(&videoroom->ref);
 					error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
                     g_snprintf(error_cause, 512, "role  is none");
 					goto error;
@@ -7675,7 +7685,7 @@ static int wbx_table_add_publisher(wxs_videoroom_publisher* publish)
         info = g_malloc0(sizeof(wbx_publisher_info));
         info->private_id = publish->pvt_id;
         info->user_id = publish->user_id;
-        g_hash_table_insert(tmpTable, &jsid, info);
+        g_hash_table_insert(tmpTable, janus_uint64_dup(jsid), info);
 
         ret = 0;
     }
