@@ -1149,7 +1149,7 @@ int janus_http_admin_client_connect(void *cls, const struct sockaddr *addr, sock
 /* WebServer requests handler */
 int janus_http_handler(void *cls, struct MHD_Connection *connection, const char *url, const char *method, const char *version, const char *upload_data, size_t *upload_data_size, void **ptr)
 {
-    JANUS_LOG(LOG_INFO, "in janus_http_handler\n");
+    JANUS_LOG(LOG_INFO, "----------------- in janus_http_handler\n");
 	char *payload = NULL;
 	json_t *root = NULL;
 	struct MHD_Response *response = NULL;
@@ -1231,6 +1231,7 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		}
 		if(firstround) {
 			g_strfreev(basepath);
+            JANUS_LOG(LOG_INFO, "+++++++++++++++ out  janus_http_handler 11\n");
 			return ret;
 		}
 		path = g_strsplit(basepath[1], "/", -1);
@@ -1242,12 +1243,14 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			MHD_destroy_response(response);
 			g_strfreev(basepath);
 			g_strfreev(path);
+            JANUS_LOG(LOG_INFO, "+++++++++++++++ out  janus_http_handler 22\n");
 			return ret;
 		}
 	}
 	if(firstround) {
 		g_strfreev(basepath);
 		g_strfreev(path);
+        JANUS_LOG(LOG_INFO, "+++++++++++++++ out  janus_http_handler 33\n");
 		return ret;
 	}
 	JANUS_LOG(LOG_DBG, " ... parsing request...\n");
@@ -1517,6 +1520,7 @@ done:
 	g_strfreev(path);
 	g_free(session_path);
 	g_free(handle_path);
+    JANUS_LOG(LOG_INFO, "+++++++++++++++ out  janus_http_handler 99\n");
 	return ret;
 }
 
