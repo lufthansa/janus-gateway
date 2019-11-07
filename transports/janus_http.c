@@ -746,6 +746,7 @@ int janus_http_init(janus_transport_callbacks *callback, const char *config_path
 
 		/* Start with the Janus API web server now */
 		gint64 threads = 0;
+        JANUS_LOG(LOG_INFO, "janus_http_init work threads = %lu\n", threads);
 		item = janus_config_get(config, config_general, janus_config_type_item, "threads");
 		if(item && item->value) {
 			if(!strcasecmp(item->value, "unlimited")) {
@@ -1253,9 +1254,6 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
         JANUS_LOG(LOG_INFO, "+++++++++++++++ out  janus_http_handler 33\n");
 		return ret;
 	}
-
-    
-    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 33333\n");
     
 	JANUS_LOG(LOG_DBG, " ... parsing request...\n");
 	if(path != NULL && path[1] != NULL && strlen(path[1]) > 0) {
@@ -1296,7 +1294,6 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		payload = msg->payload;
 		JANUS_LOG(LOG_HUGE, "%s\n", payload);
 	}
-    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 333111\n");
 
 	/* Is this a generic request for info? */
 	if(session_path != NULL && !strcmp(session_path, "info")) {
@@ -1318,7 +1315,6 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		goto parsingdone;
 	}
 
-    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 333222\n");
 	/* Or maybe a long poll */
 	if(!strcasecmp(method, "GET") || !payload) 
     {
@@ -1375,7 +1371,6 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		if(token)
 			json_object_set_new(root, "token", json_string(token));
         
-        JANUS_LOG(LOG_WARN, "*************** before incoming_request 11\n");
 		gateway->incoming_request(&janus_http_transport, ts, (void *)keepalive_id, FALSE, root, NULL);
         JANUS_LOG(LOG_WARN, "*************** after incoming_request 11\n");
         
@@ -1390,10 +1385,8 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			ret = MHD_queue_response(connection, 302, response);
 			MHD_destroy_response(response);
 			g_free(location);
-            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler goto done 111\n");
 			goto done;
 		}
-        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 111222\n");
 		janus_mutex_lock(&sessions_mutex);
 		janus_http_session *session = g_hash_table_lookup(sessions, &session_id);
 		janus_mutex_unlock(&sessions_mutex);
@@ -1403,10 +1396,8 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			janus_http_add_cors_headers(msg, response);
 			ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
 			MHD_destroy_response(response);
-            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler goto done 222\n");
 			goto done;
 		}
-        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 111333\n");
 		janus_refcount_increase(&ts->ref);
 		janus_refcount_increase(&session->ref);
 		/* How many messages can we send back in a single response? (just one by default) */
@@ -1450,7 +1441,9 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			}
 		} else {
 			/* Still no message, wait */
+            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler before janus_http_notifier\n");
 			ret = janus_http_notifier(ts, session, max_events);
+            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler after janus_http_notifier\n");
 		}
 		janus_refcount_decrease(&session->ref);
 		janus_refcount_decrease(&ts->ref);
@@ -1846,7 +1839,8 @@ int janus_http_notifier(janus_transport_session *ts, janus_http_session *session
 	json_t *event = NULL, *list = NULL;
 	gboolean found = FALSE;
 	/* We have a timeout for the long poll: 30 seconds */
-	while(end-start < 30*G_USEC_PER_SEC) {
+    // willche change to 5 seconds
+	while(end-start < 5*G_USEC_PER_SEC) {
 		if(g_atomic_int_get(&session->destroyed))
 			break;
 		event = g_async_queue_try_pop(session->events);
@@ -1874,7 +1868,7 @@ int janus_http_notifier(janus_transport_session *ts, janus_http_session *session
 			}
 		}
 		/* Sleep 100ms */
-		g_usleep(100000);
+		g_usleep(200000);
 		end = janus_get_monotonic_time();
 	}
 	if((max_events == 1 && event == NULL) || (max_events > 1 && list == NULL))
