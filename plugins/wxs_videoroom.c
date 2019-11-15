@@ -1618,6 +1618,8 @@ static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *sessio
             json_t *message, json_t* response, int *error_code, char *error_cause);
 static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *message, json_t* response,
         	int *error_code, char *error_cause);
+static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session, 
+            json_t *root, json_t* response, int *error_code, char *error_cause);
 
 static int wbx_handler_subscriber_request(wxs_videoroom_session* session, json_t* root,
         wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text);
@@ -3227,7 +3229,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		}
 		goto prepare_response;
 #endif
-	} else if(!strcasecmp(request_text, "edit")) {
+	}
+    else if(!strcasecmp(request_text, "edit")) 
+    {
 		/* Edit the properties for an existing videoroom */
 		JANUS_LOG(LOG_VERB, "Attempt to edit the properties of an existing videoroom room\n");
 		JANUS_VALIDATE_JSON_OBJECT(root, edit_parameters,
@@ -3374,12 +3378,15 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 			gateway->notify_event(&wxs_videoroom_plugin, session ? session->handle : NULL, info);
 		}
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "destroy")) {
+	} 
+    else if(!strcasecmp(request_text, "destroy")) 
+    {
+        // TODO :: create a new destroy func for auto destroy. 
 		JANUS_LOG(LOG_VERB, "Attempt to destroy an existing videoroom room\n");
 
-		// willche goto error
+		// willche: goto error
 		error_code = JANUS_VIDEOROOM_ERROR_DONT_DESTROY;
-		snprintf(error_cause, 512, "dont`t use destroy any more");
+		snprintf(error_cause, 512, "dont`t use destroy cmd any more, we will auto destroy");
 		goto prepare_response;
 		
 		JANUS_VALIDATE_JSON_OBJECT(root, destroy_parameters,
@@ -3458,7 +3465,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "permanent", save ? json_true() : json_false());
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "list")) {
+	} 
+    else if(!strcasecmp(request_text, "list")) 
+    {
 		/* List all rooms (but private ones) and their details (except for the secret, of course...) */
 		json_t *list = json_array();
 		JANUS_LOG(LOG_VERB, "Getting the list of video rooms\n");
@@ -3511,338 +3520,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		json_object_set_new(response, "videoroom", json_string("success"));
 		json_object_set_new(response, "list", list);
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "rtp_forward")) {
-
-		// willche get managed port
-		int port_index = wbx_get_port();
-		if(port_index < 0)
-		{
-			JANUS_LOG(LOG_ERR, "wxs_videoroom_process_synchronous_request rnot enough port\n");
-			error_code = JANUS_VIDEOROOM_ERROR_PUB_PORT_OUT;
-			snprintf(error_cause, 100, "publisher port empty");
-			goto prepare_response;
-		}
-
-		JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
-			error_code, error_cause, TRUE,
-			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
-		if(error_code != 0)
-			goto prepare_response;
-		if(lock_rtpfwd && admin_key != NULL) {
-			/* An admin key was specified: make sure it was provided, and that it's valid */
-			JANUS_VALIDATE_JSON_OBJECT(root, adminkey_parameters,
-				error_code, error_cause, TRUE,
-				JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
-			if(error_code != 0)
-				goto prepare_response;
-			JANUS_CHECK_SECRET(admin_key, root, "admin_key", error_code, error_cause,
-				JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT, JANUS_VIDEOROOM_ERROR_UNAUTHORIZED);
-			if(error_code != 0)
-				goto prepare_response;
-		}
-		json_t *room = json_object_get(root, "room");
-
-		const char* room_id = json_string_value(room);
-
-		// TODO: lock
-		if(wbx_check_ffmpeg(room_id))
-		{
-			JANUS_LOG(LOG_ERR, "room %s has started a ffmpeg progress \n", room_id);
-			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
-			g_snprintf(error_cause, 512, "room %s has started a ffmpeg progress", room_id);
-			goto prepare_response;
-		}
-		
-		json_t *pub_id = json_object_get(root, "publisher_id");
-		int video_port[3] = {-1, -1, -1}, video_rtcp_port = -1, video_pt[3] = {0, 0, 0};
-		uint32_t video_ssrc[3] = {0, 0, 0};
-		int audio_port = -1, audio_rtcp_port = -1, audio_pt = 0;
-		uint32_t audio_ssrc = 0;
-		int data_port = -1;
-		int srtp_suite = 0;
-		const char *srtp_crypto = NULL;
-		/* There may be multiple target video ports (e.g., publisher simulcasting) */
-		json_t *vid_port = json_object_get(root, "video_port");
-		if(vid_port) {
-			video_port[0] = json_integer_value(vid_port);
-			
-			video_port[0] = port_index * wbx_publisher_port_step + wbx_publisher_port_start;
-
-			json_t *pt = json_object_get(root, "video_pt");
-			if(pt)
-				video_pt[0] = json_integer_value(pt);
-			json_t *ssrc = json_object_get(root, "video_ssrc");
-			if(ssrc)
-				video_ssrc[0] = json_integer_value(ssrc);
-		}
-		vid_port = json_object_get(root, "video_port_2");
-		if(vid_port) {
-			video_port[1] = json_integer_value(vid_port);
-			json_t *pt = json_object_get(root, "video_pt_2");
-			if(pt)
-				video_pt[1] = json_integer_value(pt);
-			json_t *ssrc = json_object_get(root, "video_ssrc_2");
-			if(ssrc)
-				video_ssrc[1] = json_integer_value(ssrc);
-		}
-		vid_port = json_object_get(root, "video_port_3");
-		if(vid_port) {
-			video_port[2] = json_integer_value(vid_port);
-			json_t *pt = json_object_get(root, "video_pt_3");
-			if(pt)
-				video_pt[2] = json_integer_value(pt);
-			json_t *ssrc = json_object_get(root, "video_ssrc_3");
-			if(ssrc)
-				video_ssrc[2] = json_integer_value(ssrc);
-		}
-		json_t *vid_rtcp_port = json_object_get(root, "video_rtcp_port");
-		if(vid_rtcp_port)
-			video_rtcp_port = json_integer_value(vid_rtcp_port);
-		/* Audio target */
-		json_t *au_port = json_object_get(root, "audio_port");
-		if(au_port) {
-			audio_port = json_integer_value(au_port);
-
-			if(audio_port > 0)
-			{
-				audio_port = wbx_publisher_port_start + port_index * wbx_publisher_port_step + wbx_publisher_port_step / 2;
-			}
-			
-			json_t *pt = json_object_get(root, "audio_pt");
-			if(pt)
-				audio_pt = json_integer_value(pt);
-			json_t *ssrc = json_object_get(root, "audio_ssrc");
-			if(ssrc)
-				audio_ssrc = json_integer_value(ssrc);
-		}
-		json_t *au_rtcp_port = json_object_get(root, "audio_rtcp_port");
-		if(au_rtcp_port)
-			audio_rtcp_port = json_integer_value(au_rtcp_port);
-		/* Data target */
-		json_t *d_port = json_object_get(root, "data_port");
-		if(d_port) {
-			data_port = json_integer_value(d_port);
-		}
-		json_t *json_host = json_object_get(root, "host");
-		/* Do we need to forward multiple simulcast streams to a single endpoint? */
-		gboolean simulcast = FALSE;
-		if(json_object_get(root, "simulcast") != NULL)
-			simulcast = json_is_true(json_object_get(root, "simulcast"));
-		if(simulcast) {
-			/* We do, disable the other video ports if they were requested */
-			video_port[1] = -1;
-			video_port[2] = -1;
-		}
-		/* Besides, we may need to SRTP-encrypt this stream */
-		json_t *s_suite = json_object_get(root, "srtp_suite");
-		json_t *s_crypto = json_object_get(root, "srtp_crypto");
-		if(s_suite && s_crypto) {
-			srtp_suite = json_integer_value(s_suite);
-			if(srtp_suite != 32 && srtp_suite != 80) {
-				JANUS_LOG(LOG_ERR, "Invalid SRTP suite (%d)\n", srtp_suite);
-				error_code = JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT;
-				g_snprintf(error_cause, 512, "Invalid SRTP suite (%d)", srtp_suite);
-				goto prepare_response;
-			}
-			srtp_crypto = json_string_value(s_crypto);
-		}
-
-		guint64 publisher_id = json_integer_value(pub_id);
-		const char *host = json_string_value(json_host);
-		
-		janus_mutex_lock(&rooms_mutex);
-		wxs_videoroom *videoroom = NULL;
-		error_code = wxs_videoroom_access_room(root, TRUE, FALSE, &videoroom, error_cause, sizeof(error_cause));
-		janus_mutex_unlock(&rooms_mutex);
-		if(error_code != 0)
-			goto prepare_response;
-		janus_refcount_increase(&videoroom->ref);
-		janus_mutex_lock(&videoroom->mutex);
-		wxs_videoroom_publisher *publisher = g_hash_table_lookup(videoroom->participants, &publisher_id);
-		if(publisher == NULL) {
-			janus_mutex_unlock(&videoroom->mutex);
-			janus_refcount_decrease(&videoroom->ref);
-			JANUS_LOG(LOG_ERR, "No such publisher (%"SCNu64")\n", publisher_id);
-			error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_FEED;
-			g_snprintf(error_cause, 512, "No such feed (%"SCNu64")", publisher_id);
-			goto prepare_response;
-		}
-		janus_refcount_increase(&publisher->ref);	/* This is just to handle the request for now */
-		if(publisher->udp_sock <= 0) {
-			publisher->udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-			if(publisher->udp_sock <= 0) {
-				janus_refcount_decrease(&publisher->ref);
-				janus_mutex_unlock(&videoroom->mutex);
-				janus_refcount_decrease(&videoroom->ref);
-				JANUS_LOG(LOG_ERR, "Could not open UDP socket for rtp stream for publisher (%"SCNu64")\n", publisher_id);
-				error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
-				g_snprintf(error_cause, 512, "Could not open UDP socket for rtp stream");
-				goto prepare_response;
-			}
-		}
-		guint32 audio_handle = 0;
-		guint32 video_handle[3] = {0, 0, 0};
-		guint32 data_handle = 0;
-		if(audio_port > 0) {
-			audio_handle = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, audio_port, audio_rtcp_port, audio_pt, audio_ssrc,
-				FALSE, srtp_suite, srtp_crypto, 0, FALSE, FALSE);
-		}
-		if(video_port[0] > 0) {
-			video_handle[0] = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, video_port[0], video_rtcp_port, video_pt[0], video_ssrc[0],
-				simulcast, srtp_suite, srtp_crypto, 0, TRUE, FALSE);
-		}
-		if(video_port[1] > 0) {
-			video_handle[1] = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, video_port[1], 0, video_pt[1], video_ssrc[1],
-				FALSE, srtp_suite, srtp_crypto, 1, TRUE, FALSE);
-		}
-		if(video_port[2] > 0) {
-			video_handle[2] = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, video_port[2], 0, video_pt[2], video_ssrc[2],
-				FALSE, srtp_suite, srtp_crypto, 2, TRUE, FALSE);
-		}
-		if(data_port > 0) {
-			data_handle = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, data_port, 0, 0, 0, FALSE, 0, NULL, 0, FALSE, TRUE);
-		}
-		janus_mutex_unlock(&videoroom->mutex);
-		response = json_object();
-		json_t *rtp_stream = json_object();
-		if(audio_handle > 0) {
-			json_object_set_new(rtp_stream, "audio_stream_id", json_integer(audio_handle));
-			json_object_set_new(rtp_stream, "audio", json_integer(audio_port));
-			/* Also notify event handlers */
-			if(notify_events && gateway->events_is_enabled()) {
-				json_t *info = json_object();
-				json_object_set_new(info, "event", json_string("rtp_forward"));
-				json_object_set_new(info, "room", json_string(room_id));
-				json_object_set_new(info, "publisher_id", json_integer(publisher_id));
-				json_object_set_new(info, "media", json_string("audio"));
-				json_object_set_new(info, "stream_id", json_integer(audio_handle));
-				json_object_set_new(info, "host", json_string(host));
-				json_object_set_new(info, "port", json_integer(audio_port));
-				gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
-			}
-		}
-		if(video_handle[0] > 0 || video_handle[1] > 0 || video_handle[2] > 0) {
-			wxs_videoroom_reqfir(publisher, "New RTP forward publisher");
-			/* Done */
-			if(video_handle[0] > 0) {
-				json_object_set_new(rtp_stream, "video_stream_id", json_integer(video_handle[0]));
-				json_object_set_new(rtp_stream, "video", json_integer(video_port[0]));
-				/* Also notify event handlers */
-				if(notify_events && gateway->events_is_enabled()) {
-					json_t *info = json_object();
-					json_object_set_new(info, "event", json_string("rtp_forward"));
-					json_object_set_new(info, "room", json_string(room_id));
-					json_object_set_new(info, "publisher_id", json_integer(publisher_id));
-					json_object_set_new(info, "media", json_string("video"));
-					if(video_handle[1] > 0 || video_handle[2] > 0)
-						json_object_set_new(info, "video_substream", json_integer(0));
-					json_object_set_new(info, "stream_id", json_integer(video_handle[0]));
-					json_object_set_new(info, "host", json_string(host));
-					json_object_set_new(info, "port", json_integer(video_port[0]));
-					gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
-				}
-			}
-			if(video_handle[1] > 0) {
-				json_object_set_new(rtp_stream, "video_stream_id_2", json_integer(video_handle[1]));
-				json_object_set_new(rtp_stream, "video_2", json_integer(video_port[1]));
-				/* Also notify event handlers */
-				if(notify_events && gateway->events_is_enabled()) {
-					json_t *info = json_object();
-					json_object_set_new(info, "event", json_string("rtp_forward"));
-					json_object_set_new(info, "room", json_string(room_id));
-					json_object_set_new(info, "publisher_id", json_integer(publisher_id));
-					json_object_set_new(info, "media", json_string("video"));
-					json_object_set_new(info, "video_substream", json_integer(1));
-					json_object_set_new(info, "stream_id", json_integer(video_handle[1]));
-					json_object_set_new(info, "host", json_string(host));
-					json_object_set_new(info, "port", json_integer(video_port[1]));
-					gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
-				}
-			}
-			if(video_handle[2] > 0) {
-				json_object_set_new(rtp_stream, "video_stream_id_3", json_integer(video_handle[2]));
-				json_object_set_new(rtp_stream, "video_3", json_integer(video_port[2]));
-				/* Also notify event handlers */
-				if(notify_events && gateway->events_is_enabled()) {
-					json_t *info = json_object();
-					json_object_set_new(info, "event", json_string("rtp_forward"));
-					json_object_set_new(info, "room", json_string(room_id));
-					json_object_set_new(info, "publisher_id", json_integer(publisher_id));
-					json_object_set_new(info, "media", json_string("video"));
-					json_object_set_new(info, "video_substream", json_integer(2));
-					json_object_set_new(info, "stream_id", json_integer(video_handle[2]));
-					json_object_set_new(info, "host", json_string(host));
-					json_object_set_new(info, "port", json_integer(video_port[2]));
-					gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
-				}
-			}
-		}
-		if(data_handle > 0) {
-			json_object_set_new(rtp_stream, "data_stream_id", json_integer(data_handle));
-			json_object_set_new(rtp_stream, "data", json_integer(data_port));
-			/* Also notify event handlers */
-			if(notify_events && gateway->events_is_enabled()) {
-				json_t *info = json_object();
-				json_object_set_new(info, "event", json_string("rtp_forward"));
-				json_object_set_new(info, "room", json_string(room_id));
-				json_object_set_new(info, "publisher_id", json_integer(publisher_id));
-				json_object_set_new(info, "media", json_string("data"));
-				json_object_set_new(info, "stream_id", json_integer(data_handle));
-				json_object_set_new(info, "host", json_string(host));
-				json_object_set_new(info, "port", json_integer(data_port));
-				gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
-			}
-		}
-		/* These two unrefs are related to the message handling */
-		janus_refcount_decrease(&publisher->ref);
-		janus_refcount_decrease(&videoroom->ref);
-		json_object_set_new(rtp_stream, "host", json_string(host));
-		json_object_set_new(response, "publisher_id", json_integer(publisher_id));
-		json_object_set_new(response, "rtp_stream", rtp_stream);
-		json_object_set_new(response, "room", json_string(room_id));
-		json_object_set_new(response, "videoroom", json_string("rtp_forward"));
-
-		// willche if no error, start ffmpeg rtp->rtmp shell
-		janus_mutex_lock(&ffmpegps_mutex);
-#if 1
-		if(!wbx_check_ffmpeg(room_id))
-		{
-			// willche add custom rtmp server
-			json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
-			
-			json_t *view_jwidth = json_object_get(root, "view_width");
-			json_t *view_jheigth = json_object_get(root, "view_height");
-			int view_iheigth = 0;
-			int view_iwidth = 0;
-			if(view_jwidth) {
-				view_iheigth = json_integer_value(view_jheigth);			
-				view_iwidth = json_integer_value(view_jwidth);
-			}
-
-			if(json_stmp_server) 
-			{
-				const char * rtmp_server = json_string_value(json_stmp_server);
-				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, rtmp_server, port_index);
-			}
-			else
-			{
-				wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, NULL, port_index);
-			}
-//            ffmpeg_prepare(room_id);
-		}
-		else
-		{
-			JANUS_LOG(LOG_ERR, "room %s has started a ffmpeg progress \n", room_id);
-			error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
-			g_snprintf(error_cause, 512, "room %s has started a ffmpeg progress", room_id);
-			janus_mutex_unlock(&ffmpegps_mutex);
-			goto prepare_response;
-		}
-#endif
-		janus_mutex_unlock(&ffmpegps_mutex);
-
-		goto prepare_response;
-	} else if(!strcasecmp(request_text, "stop_rtp_forward")) {
+	} 
+    else if(!strcasecmp(request_text, "stop_rtp_forward")) 
+    {
 		JANUS_VALIDATE_JSON_OBJECT(root, stop_rtp_forward_parameters,
 			error_code, error_cause, TRUE,
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
@@ -3915,7 +3595,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 			gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
 		}
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "exists")) {
+	} 
+    else if(!strcasecmp(request_text, "exists")) 
+    {
 		/* Check whether a given room exists or not, returns true/false */
 		JANUS_VALIDATE_JSON_OBJECT(root, room_parameters,
 			error_code, error_cause, TRUE,
@@ -3932,7 +3614,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "exists", room_exists ? json_true() : json_false());
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "allowed")) {
+	} 
+    else if(!strcasecmp(request_text, "allowed")) 
+    {
 		JANUS_LOG(LOG_VERB, "Attempt to edit the list of allowed participants in an existing videoroom room\n");
 		JANUS_VALIDATE_JSON_OBJECT(root, allowed_parameters,
 			error_code, error_cause, TRUE,
@@ -4028,7 +3712,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		janus_refcount_decrease(&videoroom->ref);
 		JANUS_LOG(LOG_VERB, "VideoRoom room allowed list updated\n");
 		goto prepare_response;
-    } else if(!strcasecmp(request_text, "kick")) {
+    } 
+    else if(!strcasecmp(request_text, "kick")) 
+    {
 		JANUS_LOG(LOG_VERB, "Attempt to kick a participant from an existing videoroom room\n");
 		JANUS_VALIDATE_JSON_OBJECT(root, kick_parameters,
 			error_code, error_cause, TRUE,
@@ -4121,7 +3807,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		/* Done */
 		janus_refcount_decrease(&videoroom->ref);
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "listparticipants")) {
+	} 
+    else if(!strcasecmp(request_text, "listparticipants")) 
+    {
 		/* List all participants in a room, specifying whether they're publishers or just attendees */
 		JANUS_VALIDATE_JSON_OBJECT(root, room_parameters,
 			error_code, error_cause, TRUE,
@@ -4163,7 +3851,9 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		json_object_set_new(response, "room", json_integer(room_id));
 		json_object_set_new(response, "participants", list);
 		goto prepare_response;
-	} else if(!strcasecmp(request_text, "listforwarders")) {
+	} 
+    else if(!strcasecmp(request_text, "listforwarders")) 
+    {
 		/* List all forwarders in a room */
 		JANUS_VALIDATE_JSON_OBJECT(root, room_parameters,
 			error_code, error_cause, TRUE,
@@ -4264,7 +3954,12 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		json_object_set_new(response, "room", json_string(room_id));
 		json_object_set_new(response, "rtp_forwarders", list);
 		goto prepare_response;
-    }else if (!strcasecmp(request_text, "changestream")) {
+    }
+    else if(!strcasecmp(request_text, "rtp_forward")) {
+        wbx_sync_handler_rtp_forward(session, root, response, &error_code, error_cause);
+        goto prepare_response;
+    }
+    else if (!strcasecmp(request_text, "changestream")) {
         response = json_object();
         wbx_sync_handler_change_stream(session, message, response, &error_code, error_cause);
         goto prepare_response;
@@ -6683,6 +6378,342 @@ static int wbx_get_publisher_list(wxs_videoroom_publisher* publisher)
 
     return ret;
 }
+
+static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session, 
+            json_t *root, json_t* response, int *error_code, char *error_cause)
+{
+    int ret = -1;
+	// willche get managed port
+	int port_index = wbx_get_port();
+	if(port_index < 0)
+	{
+		JANUS_LOG(LOG_ERR, "wxs_videoroom_process_synchronous_request rnot enough port\n");
+		*error_code = JANUS_VIDEOROOM_ERROR_PUB_PORT_OUT;
+		snprintf(error_cause, 100, "publisher port empty");
+		return ret;
+	}
+
+	JANUS_VALIDATE_JSON_OBJECT(root, rtp_forward_parameters,
+		*error_code, error_cause, TRUE,
+		JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
+	if(*error_code != 0)
+		return ret;
+	if(lock_rtpfwd && admin_key != NULL) {
+		/* An admin key was specified: make sure it was provided, and that it's valid */
+		JANUS_VALIDATE_JSON_OBJECT(root, adminkey_parameters,
+			*error_code, error_cause, TRUE,
+			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
+		if(*error_code != 0)
+            return ret;
+		JANUS_CHECK_SECRET(admin_key, root, "admin_key", *error_code, error_cause,
+			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT, JANUS_VIDEOROOM_ERROR_UNAUTHORIZED);
+		if(*error_code != 0)
+            return ret;
+	}
+	json_t *room = json_object_get(root, "room");
+
+	const char* room_id = json_string_value(room);
+
+	// TODO: lock
+	if(wbx_check_ffmpeg(room_id))
+	{
+		JANUS_LOG(LOG_ERR, "room %s has started a ffmpeg progress \n", room_id);
+		*error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
+		g_snprintf(error_cause, 512, "room %s has started a ffmpeg progress", room_id);
+		return ret;
+	}
+	
+	json_t *pub_id = json_object_get(root, "publisher_id");
+	int video_port[3] = {-1, -1, -1}, video_rtcp_port = -1, video_pt[3] = {0, 0, 0};
+	uint32_t video_ssrc[3] = {0, 0, 0};
+	int audio_port = -1, audio_rtcp_port = -1, audio_pt = 0;
+	uint32_t audio_ssrc = 0;
+	int data_port = -1;
+	int srtp_suite = 0;
+	const char *srtp_crypto = NULL;
+	/* There may be multiple target video ports (e.g., publisher simulcasting) */
+	json_t *vid_port = json_object_get(root, "video_port");
+	if(vid_port) {
+		video_port[0] = json_integer_value(vid_port);
+		
+		video_port[0] = port_index * wbx_publisher_port_step + wbx_publisher_port_start;
+
+		json_t *pt = json_object_get(root, "video_pt");
+		if(pt)
+			video_pt[0] = json_integer_value(pt);
+		json_t *ssrc = json_object_get(root, "video_ssrc");
+		if(ssrc)
+			video_ssrc[0] = json_integer_value(ssrc);
+	}
+	vid_port = json_object_get(root, "video_port_2");
+	if(vid_port) {
+		video_port[1] = json_integer_value(vid_port);
+		json_t *pt = json_object_get(root, "video_pt_2");
+		if(pt)
+			video_pt[1] = json_integer_value(pt);
+		json_t *ssrc = json_object_get(root, "video_ssrc_2");
+		if(ssrc)
+			video_ssrc[1] = json_integer_value(ssrc);
+	}
+	vid_port = json_object_get(root, "video_port_3");
+	if(vid_port) {
+		video_port[2] = json_integer_value(vid_port);
+		json_t *pt = json_object_get(root, "video_pt_3");
+		if(pt)
+			video_pt[2] = json_integer_value(pt);
+		json_t *ssrc = json_object_get(root, "video_ssrc_3");
+		if(ssrc)
+			video_ssrc[2] = json_integer_value(ssrc);
+	}
+	json_t *vid_rtcp_port = json_object_get(root, "video_rtcp_port");
+	if(vid_rtcp_port)
+		video_rtcp_port = json_integer_value(vid_rtcp_port);
+	/* Audio target */
+	json_t *au_port = json_object_get(root, "audio_port");
+	if(au_port) {
+		audio_port = json_integer_value(au_port);
+
+		if(audio_port > 0)
+		{
+			audio_port = wbx_publisher_port_start + port_index * wbx_publisher_port_step + wbx_publisher_port_step / 2;
+		}
+		
+		json_t *pt = json_object_get(root, "audio_pt");
+		if(pt)
+			audio_pt = json_integer_value(pt);
+		json_t *ssrc = json_object_get(root, "audio_ssrc");
+		if(ssrc)
+			audio_ssrc = json_integer_value(ssrc);
+	}
+	json_t *au_rtcp_port = json_object_get(root, "audio_rtcp_port");
+	if(au_rtcp_port)
+		audio_rtcp_port = json_integer_value(au_rtcp_port);
+	/* Data target */
+	json_t *d_port = json_object_get(root, "data_port");
+	if(d_port) {
+		data_port = json_integer_value(d_port);
+	}
+	json_t *json_host = json_object_get(root, "host");
+	/* Do we need to forward multiple simulcast streams to a single endpoint? */
+	gboolean simulcast = FALSE;
+	if(json_object_get(root, "simulcast") != NULL)
+		simulcast = json_is_true(json_object_get(root, "simulcast"));
+	if(simulcast) {
+		/* We do, disable the other video ports if they were requested */
+		video_port[1] = -1;
+		video_port[2] = -1;
+	}
+	/* Besides, we may need to SRTP-encrypt this stream */
+	json_t *s_suite = json_object_get(root, "srtp_suite");
+	json_t *s_crypto = json_object_get(root, "srtp_crypto");
+	if(s_suite && s_crypto) {
+		srtp_suite = json_integer_value(s_suite);
+		if(srtp_suite != 32 && srtp_suite != 80) {
+			JANUS_LOG(LOG_ERR, "Invalid SRTP suite (%d)\n", srtp_suite);
+			*error_code = JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT;
+			g_snprintf(error_cause, 512, "Invalid SRTP suite (%d)", srtp_suite);
+            return ret;
+		}
+		srtp_crypto = json_string_value(s_crypto);
+	}
+
+	guint64 publisher_id = json_integer_value(pub_id);
+	const char *host = json_string_value(json_host);
+	
+	janus_mutex_lock(&rooms_mutex);
+	wxs_videoroom *videoroom = NULL;
+	*error_code = wxs_videoroom_access_room(root, TRUE, FALSE, &videoroom, error_cause, sizeof(error_cause));
+	janus_mutex_unlock(&rooms_mutex);
+	if(*error_code != 0)
+		return ret;
+	janus_refcount_increase(&videoroom->ref);
+	janus_mutex_lock(&videoroom->mutex);
+	wxs_videoroom_publisher *publisher = g_hash_table_lookup(videoroom->participants, &publisher_id);
+	if(publisher == NULL) {
+		janus_mutex_unlock(&videoroom->mutex);
+		janus_refcount_decrease(&videoroom->ref);
+		JANUS_LOG(LOG_ERR, "No such publisher (%"SCNu64")\n", publisher_id);
+		*error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_FEED;
+		g_snprintf(error_cause, 512, "No such feed (%"SCNu64")", publisher_id);
+		return ret;
+	}
+	janus_refcount_increase(&publisher->ref);	/* This is just to handle the request for now */
+	if(publisher->udp_sock <= 0) {
+		publisher->udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		if(publisher->udp_sock <= 0) {
+			janus_refcount_decrease(&publisher->ref);
+			janus_mutex_unlock(&videoroom->mutex);
+			janus_refcount_decrease(&videoroom->ref);
+			JANUS_LOG(LOG_ERR, "Could not open UDP socket for rtp stream for publisher (%"SCNu64")\n", publisher_id);
+			*error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
+			g_snprintf(error_cause, 512, "Could not open UDP socket for rtp stream");
+            return ret;
+		}
+	}
+	guint32 audio_handle = 0;
+	guint32 video_handle[3] = {0, 0, 0};
+	guint32 data_handle = 0;
+	if(audio_port > 0) {
+		audio_handle = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, audio_port, audio_rtcp_port, audio_pt, audio_ssrc,
+			FALSE, srtp_suite, srtp_crypto, 0, FALSE, FALSE);
+	}
+	if(video_port[0] > 0) {
+		video_handle[0] = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, video_port[0], video_rtcp_port, video_pt[0], video_ssrc[0],
+			simulcast, srtp_suite, srtp_crypto, 0, TRUE, FALSE);
+	}
+	if(video_port[1] > 0) {
+		video_handle[1] = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, video_port[1], 0, video_pt[1], video_ssrc[1],
+			FALSE, srtp_suite, srtp_crypto, 1, TRUE, FALSE);
+	}
+	if(video_port[2] > 0) {
+		video_handle[2] = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, video_port[2], 0, video_pt[2], video_ssrc[2],
+			FALSE, srtp_suite, srtp_crypto, 2, TRUE, FALSE);
+	}
+	if(data_port > 0) {
+		data_handle = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, data_port, 0, 0, 0, FALSE, 0, NULL, 0, FALSE, TRUE);
+	}
+	janus_mutex_unlock(&videoroom->mutex);
+	response = json_object();
+	json_t *rtp_stream = json_object();
+	if(audio_handle > 0) {
+		json_object_set_new(rtp_stream, "audio_stream_id", json_integer(audio_handle));
+		json_object_set_new(rtp_stream, "audio", json_integer(audio_port));
+		/* Also notify event handlers */
+		if(notify_events && gateway->events_is_enabled()) {
+			json_t *info = json_object();
+			json_object_set_new(info, "event", json_string("rtp_forward"));
+			json_object_set_new(info, "room", json_string(room_id));
+			json_object_set_new(info, "publisher_id", json_integer(publisher_id));
+			json_object_set_new(info, "media", json_string("audio"));
+			json_object_set_new(info, "stream_id", json_integer(audio_handle));
+			json_object_set_new(info, "host", json_string(host));
+			json_object_set_new(info, "port", json_integer(audio_port));
+			gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
+		}
+	}
+	if(video_handle[0] > 0 || video_handle[1] > 0 || video_handle[2] > 0) {
+		wxs_videoroom_reqfir(publisher, "New RTP forward publisher");
+		/* Done */
+		if(video_handle[0] > 0) {
+			json_object_set_new(rtp_stream, "video_stream_id", json_integer(video_handle[0]));
+			json_object_set_new(rtp_stream, "video", json_integer(video_port[0]));
+			/* Also notify event handlers */
+			if(notify_events && gateway->events_is_enabled()) {
+				json_t *info = json_object();
+				json_object_set_new(info, "event", json_string("rtp_forward"));
+				json_object_set_new(info, "room", json_string(room_id));
+				json_object_set_new(info, "publisher_id", json_integer(publisher_id));
+				json_object_set_new(info, "media", json_string("video"));
+				if(video_handle[1] > 0 || video_handle[2] > 0)
+					json_object_set_new(info, "video_substream", json_integer(0));
+				json_object_set_new(info, "stream_id", json_integer(video_handle[0]));
+				json_object_set_new(info, "host", json_string(host));
+				json_object_set_new(info, "port", json_integer(video_port[0]));
+				gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
+			}
+		}
+		if(video_handle[1] > 0) {
+			json_object_set_new(rtp_stream, "video_stream_id_2", json_integer(video_handle[1]));
+			json_object_set_new(rtp_stream, "video_2", json_integer(video_port[1]));
+			/* Also notify event handlers */
+			if(notify_events && gateway->events_is_enabled()) {
+				json_t *info = json_object();
+				json_object_set_new(info, "event", json_string("rtp_forward"));
+				json_object_set_new(info, "room", json_string(room_id));
+				json_object_set_new(info, "publisher_id", json_integer(publisher_id));
+				json_object_set_new(info, "media", json_string("video"));
+				json_object_set_new(info, "video_substream", json_integer(1));
+				json_object_set_new(info, "stream_id", json_integer(video_handle[1]));
+				json_object_set_new(info, "host", json_string(host));
+				json_object_set_new(info, "port", json_integer(video_port[1]));
+				gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
+			}
+		}
+		if(video_handle[2] > 0) {
+			json_object_set_new(rtp_stream, "video_stream_id_3", json_integer(video_handle[2]));
+			json_object_set_new(rtp_stream, "video_3", json_integer(video_port[2]));
+			/* Also notify event handlers */
+			if(notify_events && gateway->events_is_enabled()) {
+				json_t *info = json_object();
+				json_object_set_new(info, "event", json_string("rtp_forward"));
+				json_object_set_new(info, "room", json_string(room_id));
+				json_object_set_new(info, "publisher_id", json_integer(publisher_id));
+				json_object_set_new(info, "media", json_string("video"));
+				json_object_set_new(info, "video_substream", json_integer(2));
+				json_object_set_new(info, "stream_id", json_integer(video_handle[2]));
+				json_object_set_new(info, "host", json_string(host));
+				json_object_set_new(info, "port", json_integer(video_port[2]));
+				gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
+			}
+		}
+	}
+	if(data_handle > 0) {
+		json_object_set_new(rtp_stream, "data_stream_id", json_integer(data_handle));
+		json_object_set_new(rtp_stream, "data", json_integer(data_port));
+		/* Also notify event handlers */
+		if(notify_events && gateway->events_is_enabled()) {
+			json_t *info = json_object();
+			json_object_set_new(info, "event", json_string("rtp_forward"));
+			json_object_set_new(info, "room", json_string(room_id));
+			json_object_set_new(info, "publisher_id", json_integer(publisher_id));
+			json_object_set_new(info, "media", json_string("data"));
+			json_object_set_new(info, "stream_id", json_integer(data_handle));
+			json_object_set_new(info, "host", json_string(host));
+			json_object_set_new(info, "port", json_integer(data_port));
+			gateway->notify_event(&wxs_videoroom_plugin, NULL, info);
+		}
+	}
+	/* These two unrefs are related to the message handling */
+	janus_refcount_decrease(&publisher->ref);
+	janus_refcount_decrease(&videoroom->ref);
+	json_object_set_new(rtp_stream, "host", json_string(host));
+	json_object_set_new(response, "publisher_id", json_integer(publisher_id));
+	json_object_set_new(response, "rtp_stream", rtp_stream);
+	json_object_set_new(response, "room", json_string(room_id));
+	json_object_set_new(response, "videoroom", json_string("rtp_forward"));
+
+	// willche if no error, start ffmpeg rtp->rtmp shell
+	janus_mutex_lock(&ffmpegps_mutex);
+#if 1
+	if(!wbx_check_ffmpeg(room_id))
+	{
+		// willche add custom rtmp server
+		json_t *json_stmp_server = json_object_get(root, "custom_rtmp");
+		
+		json_t *view_jwidth = json_object_get(root, "view_width");
+		json_t *view_jheigth = json_object_get(root, "view_height");
+		int view_iheigth = 0;
+		int view_iwidth = 0;
+		if(view_jwidth) {
+			view_iheigth = json_integer_value(view_jheigth);			
+			view_iwidth = json_integer_value(view_jwidth);
+		}
+
+		if(json_stmp_server) 
+		{
+			const char * rtmp_server = json_string_value(json_stmp_server);
+			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, rtmp_server, port_index);
+		}
+		else
+		{
+			wbx_start_ffmpeg(session->sdp_sessid, room_id, publisher_id, video_port[0], audio_port, view_iwidth, view_iheigth, NULL, port_index);
+		}
+//            ffmpeg_prepare(room_id);
+	}
+	else
+	{
+		JANUS_LOG(LOG_ERR, "room %s has started a ffmpeg progress \n", room_id);
+		*error_code = JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR;
+		g_snprintf(error_cause, 512, "room %s has started a ffmpeg progress", room_id);
+		janus_mutex_unlock(&ffmpegps_mutex);
+		return ret;
+	}
+#endif
+	janus_mutex_unlock(&ffmpegps_mutex);
+
+    return 0;
+}
+
 
 // producer ask presenter to change bitrate
 static int wbx_sync_handler_change_stream(wxs_videoroom_session *session, 
