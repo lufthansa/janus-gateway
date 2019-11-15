@@ -1622,13 +1622,13 @@ static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session,
             json_t *root, json_t* response, int *error_code, char *error_cause);
 
 static int wbx_handler_subscriber_request(wxs_videoroom_session* session, json_t* root,
-        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text);
+        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text, gboolen sdp_update);
 static int wbx_handler_publisher_request(wxs_videoroom_session* session, wxs_videoroom_publisher *participant, 
-        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text);
+        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text, json_t* root, gboolen sdp_update);
 static int wbx_handler_join_as_subscriber(wxs_videoroom_session* session, wxs_videoroom *videoroom, 
         wxs_videoroom_message *msg, json_t *root, int *error_code, char *error_cause, const char *ptype_text);
 static int wbx_handler_join_as_publisher(wxs_videoroom_session* session, wxs_videoroom* videoroom, 
-        json_t *root, int *error_code, char *error_cause);
+        json_t *root, int *error_code, char *error_cause, const char* request_text);
 
 // end wxs
 #if 0
@@ -5199,7 +5199,7 @@ static void *wxs_videoroom_handler(void *data) {
             
 			if(!strcasecmp(ptype_text, "publisher")) 
             {
-                if(wbx_handler_join_as_publisher(session, videoroom, root, &error_code, error_cause))
+                if(wbx_handler_join_as_publisher(session, videoroom, root, &error_code, error_cause, request_text))
                 {
                     goto error;
                 }			
@@ -5226,13 +5226,13 @@ static void *wxs_videoroom_handler(void *data) {
 			/* Handle this publisher */
 			participant = wxs_videoroom_session_get_publisher(session);
 
-            if(wbx_handler_publisher_request(session, participant, msg, &error_code, error_cause, request_text))
+            if(wbx_handler_publisher_request(session, participant, msg, &error_code, error_cause, request_text, root, sdp_update))
                 goto error;
 		} 
         else if(session->participant_type == wxs_videoroom_p_type_subscriber) 
         {
             int fret = 0;
-            fret = wbx_handler_subscriber_request(session, root, msg, &error_code, error_cause, request_text);
+            fret = wbx_handler_subscriber_request(session, root, msg, &error_code, error_cause, request_text, sdp_update);
 
             if(fret == -1)
                 goto error;
@@ -6993,7 +6993,7 @@ static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *me
 
 // a sub session fisrt join, as a publisher
 static int wbx_handler_join_as_publisher(wxs_videoroom_session* session, wxs_videoroom* videoroom, 
-        json_t *root, int *error_code, char *error_cause)
+        json_t *root, int *error_code, char *error_cause, const char* request_text)
 {
     int ret = -1;
     
@@ -7419,7 +7419,7 @@ static int wbx_handler_join_as_subscriber(wxs_videoroom_session* session, wxs_vi
 			janus_refcount_decrease(&owner->ref);
 		}
 		JANUS_LOG(LOG_INFO, "Preparing JSON eventattached feed_id = %ul\n", feed_id);
-		josn_t* event = json_object();
+		json_t* event = json_object();
 		json_object_set_new(event, "videoroom", json_string("attached"));
 		json_object_set_new(event, "room", json_string(subscriber->room_id));
 		json_object_set_new(event, "id", json_integer(feed_id));
@@ -7482,7 +7482,7 @@ static int wbx_handler_join_as_subscriber(wxs_videoroom_session* session, wxs_vi
             
 
 static int wbx_handler_publisher_request(wxs_videoroom_session* session, wxs_videoroom_publisher *participant, 
-        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text)
+        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text, json_t* root, gboolen sdp_update)
 {
     int ret = -1;
     
@@ -7684,7 +7684,7 @@ static int wbx_handler_publisher_request(wxs_videoroom_session* session, wxs_vid
 			JANUS_LOG(LOG_WARN, "Got an 'update' request, but no SDP update? Ignoring...\n");
 		}
 		/* Done */
-		event = json_object();
+		json_t* event = json_object();
 		json_object_set_new(event, "videoroom", json_string("event"));
 		json_object_set_new(event, "room", json_string(participant->room_id));
 		json_object_set_new(event, "configured", json_string("ok"));
@@ -7759,7 +7759,7 @@ static int wbx_handler_publisher_request(wxs_videoroom_session* session, wxs_vid
 
 
 static int wbx_handler_subscriber_request(wxs_videoroom_session* session, json_t* root,
-        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text)
+        wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text, gboolen sdp_update)
 {
     int ret = -1;
     
@@ -7934,7 +7934,7 @@ static int wbx_handler_subscriber_request(wxs_videoroom_session* session, json_t
 				subscriber->target_temporal_layer = temporal_layer;
 			}
 		}
-		josn_t* event = json_object();
+		json_t* event = json_object();
 		json_object_set_new(event, "videoroom", json_string("event"));
 		json_object_set_new(event, "room", json_string(subscriber->room_id));
 		json_object_set_new(event, "configured", json_string("ok"));
