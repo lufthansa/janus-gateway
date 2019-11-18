@@ -7727,7 +7727,7 @@ static int wbx_handler_publisher_request(wxs_videoroom_session* session, wxs_vid
 		json_object_set_new(*event, "videoroom", json_string("event"));
 		json_object_set_new(*event, "room", json_string(participant->room_id));
 		json_object_set_new(*event, "unpublished", json_string("ok"));
-		wbx_kill_ffmpeg(participant->session->sdp_sessid, participant->room_id, participant->user_id, TRUE);
+		wbx_kill_ffmpeg(participant, participant->room_id, participant->user_id, TRUE);
 	} else if(!strcasecmp(request_text, "leave")) {
 		/* Prepare an event to confirm the request */
 		*event = json_object();
