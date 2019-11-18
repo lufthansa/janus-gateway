@@ -5159,6 +5159,7 @@ static void *wxs_videoroom_handler(void *data) {
             else    
             {
                 // if room is not exist, only producer can create room.
+#if 0                
                 if(role_id != wxs_videoroom_p_role_producer)
                 {
     				error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
@@ -5166,7 +5167,7 @@ static void *wxs_videoroom_handler(void *data) {
     				janus_mutex_unlock(&rooms_mutex);
     				goto error;
                 }
-
+#endif
                 // TODO: check if this room url belong to this producer
                 
        			json_t *secret = json_object_get(root, "sercret");
@@ -6381,8 +6382,17 @@ static int wbx_get_publisher_list(wxs_videoroom_publisher* publisher)
 
 static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session, 
             json_t *root, json_t* response, int *error_code, char *error_cause)
-{
+{    
     int ret = -1;
+
+   	if(session->publisher_role != wxs_videoroom_p_role_producer)
+	{
+		JANUS_LOG(LOG_ERR, "wbx_sync_handler_rtp_forward role error %d\n", session->publisher_role);
+		*error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
+		snprintf(error_cause, 100, "only producer can push stream role %d", session->publisher_role);
+		return ret;
+	}
+        
 	// willche get managed port
 	int port_index = wbx_get_port();
 	if(port_index < 0)
@@ -7177,6 +7187,7 @@ static int wbx_handler_join_as_publisher(wxs_videoroom_session* session, wxs_vid
     }
     
     publisher->publisher_role = role_id;
+    session->publisher_role = role_id;
     
     wbx_table_add_publisher(publisher);
     
