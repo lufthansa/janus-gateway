@@ -1557,6 +1557,7 @@ typedef struct wxs_videoroom_rtp_relay_packet {
 
 
 // wilche start wbx
+#define USE_FFMPEG_API
 static GHashTable *ffmpegps;
 static GHashTable *publisher_info;  // <roomid, GHashTable<janus_session_id, wbx_publisher_info>>
 
@@ -4357,7 +4358,7 @@ void wxs_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *b
 	wxs_videoroom *videoroom = participant->room;
 
 // willche : use ffmpeg api to push stream
-#if 1
+#ifdef USE_FFMPEG_API
     if(participant->publisher_role == wxs_videoroom_p_role_producer)
     {
         char uid[64] = {0};
@@ -4368,12 +4369,12 @@ void wxs_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *b
             rtmp_stream_push(uid, buf, len, !video && participant->audio_active);
     }
 #else
-    if(video)
-    {
-        FILE* f = fopen("/myrecord", "ab+");
-        fwrite((void*) buf, len, 1, f);
-        fclose(f);
-    }
+//    if(video)
+//    {
+//        FILE* f = fopen("/myrecord", "ab+");
+//        fwrite((void*) buf, len, 1, f);
+//        fclose(f);
+//    }
 #endif
 
 	/* In case this is an audio packet and we're doing talk detection, check the audio level extension */
@@ -5917,8 +5918,10 @@ static void wbx_display_int_queue(GQueue *queue, const char *qname)
 static void wbx_init()
 {
 	int i;
-
+#ifdef USE_FFMPEG_API
     rtmp_module_init();
+#endif
+
 	wbx_used_port = g_queue_new();
 	wbx_free_port = g_queue_new();
 	janus_mutex_init(&wbx_port_mutex);
@@ -5957,7 +5960,9 @@ static int wbx_get_roomid(json_t *room, char* ret, int len)
 
 static int wbx_get_port()
 {
+#ifdef USE_FFMPEG_API
     return 1;
+#endif
 
     // no use now , use ffmpeg api, delete later.
 	int start_port = -1;
@@ -6081,7 +6086,7 @@ static int wbx_kill_ffmpeg(wxs_videoroom_publisher* publisher, const char* room_
 	int port_index = -1;
 	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  sid = %lu rid = %lu uid = %lu \n", publisher->session->sdp_sessid, room_id, user_id);
 
-#if 1
+#ifdef USE_FFMPEG_API
     char uid[64] = {0};
     snprintf(uid, 64, "%lu", user_id);
     rtmp_stream_close(uid);
@@ -6129,7 +6134,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %s, videoport = %d, audio-port = %d \n", 
 		session_id, room_id, video_port, audio_port);
 
-#if 1
+#ifdef USE_FFMPEG_API
     Video_Param tmpvp;
     Audio_Param tmpap = {.channels = 1, .sample_rate = 48000, .input_format = Format_16Bit};
 
