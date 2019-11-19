@@ -1047,7 +1047,7 @@ room-<unique room ID>: {
 #include "../utils.h"
 #include <sys/types.h>
 #include <sys/socket.h>
-
+#include "rtmp.h"
 
 /* Plugin information */
 #define JANUS_VIDEOROOM_VERSION			9
@@ -4339,14 +4339,6 @@ void wxs_videoroom_setup_media(janus_plugin_session *handle) {
 }
 
 void wxs_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
-#if 0
-    if(video)
-    {
-        FILE* f = fopen("/myrecord", "ab+");
-        fwrite((void*) buf, len, 1, f);
-        fclose(f);
-    }
-#endif
 
 	// willche comment
 	// JANUS_LOG(LOG_INFO, "willche in wxs_videoroom_incoming_rtp video = %d, len %d \n", video, len);
@@ -4363,6 +4355,24 @@ void wxs_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *b
 		return;
 	}
 	wxs_videoroom *videoroom = participant->room;
+
+// willche : use ffmpeg api to push stream
+#if 1
+    if(participant->publisher_role == wxs_videoroom_p_role_producer)
+    {
+        char uid[64] = {0};
+        snprintf(uid, 64, "%lu", participant->user_id);
+        rtmp_stream_push(uid, buf, len, video && participant->video_active);
+        rtmp_stream_push(uid, buf, len, !video && participant->audio_active);
+    }
+#else
+    if(video)
+    {
+        FILE* f = fopen("/myrecord", "ab+");
+        fwrite((void*) buf, len, 1, f);
+        fclose(f);
+    }
+#endif
 
 	/* In case this is an audio packet and we're doing talk detection, check the audio level extension */
 	if(!video && videoroom->audiolevel_event && participant->audio_active) {
@@ -5905,6 +5915,8 @@ static void wbx_display_int_queue(GQueue *queue, const char *qname)
 static void wbx_init()
 {
 	int i;
+
+    rtmp_module_init();
 	wbx_used_port = g_queue_new();
 	wbx_free_port = g_queue_new();
 	janus_mutex_init(&wbx_port_mutex);
@@ -5943,6 +5955,9 @@ static int wbx_get_roomid(json_t *room, char* ret, int len)
 
 static int wbx_get_port()
 {
+    return 1;
+
+    // no use now , use ffmpeg api, delete later.
 	int start_port = -1;
 	janus_mutex_lock(&wbx_port_mutex);
 
@@ -6063,6 +6078,12 @@ static int wbx_kill_ffmpeg(wxs_videoroom_publisher* publisher, const char* room_
 {
 	int port_index = -1;
 	JANUS_LOG(LOG_INFO, "willche in wbx_kill_ffmpeg  sid = %lu rid = %lu uid = %lu \n", publisher->session->sdp_sessid, room_id, user_id);
+
+#if 1
+    char uid[64] = {0};
+    snprintf(uid, 64, "%lu", user_id);
+    rtmp_stream_close(uid);
+#else
 	wbx_ffmpeg_progress * ffps = NULL;
 	ffps = g_hash_table_lookup(ffmpegps, room_id);
 
@@ -6089,9 +6110,10 @@ static int wbx_kill_ffmpeg(wxs_videoroom_publisher* publisher, const char* room_
 	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg after remove \n");
 	wbx_print_ffmpegps();
 	janus_mutex_unlock(&ffmpegps_mutex);
+#endif
 
-	wbx_remove_room(room_id);
-	
+//	wbx_remove_room(room_id);
+
 	JANUS_LOG(LOG_INFO, "willche out wbx_kill_ffmpeg  \n");
 
 	return port_index;
@@ -6105,6 +6127,26 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg aaa sid = %ld, roomid = %s, videoport = %d, audio-port = %d \n", 
 		session_id, room_id, video_port, audio_port);
 
+#if 1
+    Video_Param tmpvp;
+    Audio_Param tmpap = {.channels = 1, .sample_rate = 48000, .input_format = Format_16Bit};
+
+    tmpvp.height = height;
+    tmpvp.width = width;
+
+    char uid[64] = {0};
+    char url[MAX_PATH_LEN] = {0};
+    snprintf(uid, 64, "%lu", user_id);
+    if(rtmp_server && strlen(rtmp_server) > 0)
+	{
+		snprintf(url, MAX_PATH_LEN, "%s", rtmp_server);
+	}
+	else
+	{
+		snprintf(url, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%lu", user_id);
+	}
+    rtmp_stream_open(uid, url, &tmpvp, &tmpap);
+#else
 //    return;
 
 	// prepare sdp file
@@ -6168,7 +6210,8 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	g_hash_table_insert(ffmpegps, g_strdup(room_id), ffps);
 	JANUS_LOG(LOG_INFO, "willche in wbx_start_ffmpeg 11111 \n");
 	wbx_print_ffmpegps();
-	
+#endif
+    
 	JANUS_LOG(LOG_INFO, "willche out wbx_start_ffmpeg  \n");
 }
 
