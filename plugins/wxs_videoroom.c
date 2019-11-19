@@ -4363,10 +4363,10 @@ void wxs_videoroom_incoming_rtp(janus_plugin_session *handle, int video, char *b
     {
         char uid[64] = {0};
         snprintf(uid, 64, "%lu", participant->user_id);
-        if(video)
-            rtmp_stream_push(uid, buf, len, video && participant->video_active);
-        else
-            rtmp_stream_push(uid, buf, len, !video && participant->audio_active);
+        if(video && participant->video_active)
+            rtmp_stream_push(uid, buf, len, Media_Video);
+        else if(!video && participant->audio_active)
+            rtmp_stream_push(uid, buf, len, Media_Audio);
     }
 #else
 //    if(video)
