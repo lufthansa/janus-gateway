@@ -18,13 +18,15 @@ void rtmp_module_init() {
 }
 
 int rtmp_stream_open(char* room_id, char* url, Video_Param* vp, Audio_Param* ap) {
+    JANUS_LOG(LOG_INFO, "rtmp open, roomid[%s], url[%s]\n", room_id, url);
+    janus_mutex_lock(&context_mutex);  
     Stream_Context* ctx = context_create(vp, ap, url);
     if (!ctx) {
         JANUS_LOG(LOG_ERR, "stream_context create fail\n");
+        janus_mutex_unlock(&context_mutex);
         return -1;
     }
     // 插入hashtable
-    janus_mutex_lock(&context_mutex);
     ctx->init_flag = TRUE;
     g_hash_table_insert(context_table, g_strdup(room_id), ctx);
     JANUS_LOG(LOG_INFO, "insert stream_context:[%s:%p]\n", room_id, ctx);
@@ -34,12 +36,13 @@ int rtmp_stream_open(char* room_id, char* url, Video_Param* vp, Audio_Param* ap)
 
 void rtmp_stream_close(char* room_id) {
     JANUS_LOG(LOG_INFO, "room[%s] stream push over, release resources\n", room_id);
+    janus_mutex_lock(&context_mutex);
     if (!g_hash_table_contains(context_table, room_id)) {
         JANUS_LOG(LOG_WARN, "room_id[%s] not exist, stream close error\n", room_id);
+        janus_mutex_unlock(&context_mutex);
         return;
     }
     // 从hashtable中删除
-    janus_mutex_lock(&context_mutex);
     g_hash_table_remove(context_table, room_id);
     janus_mutex_unlock(&context_mutex);
     return;
@@ -49,14 +52,15 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
     // 找到对应的ctx
     janus_mutex_lock(&context_mutex);
     Stream_Context* ctx = g_hash_table_lookup(context_table, room_id);
-    janus_mutex_unlock(&context_mutex);
     if (!ctx) {
         JANUS_LOG(LOG_WARN, "room_id[%s] not exist, stream push error, tablesize=%d\n", room_id, g_hash_table_size(context_table));
+        janus_mutex_unlock(&context_mutex);
         return -1;
     }
     // 判断ctx是否有效
     if (!ctx->init_flag) {
         JANUS_LOG(LOG_WARN, "room[%s] wait for context init\n", room_id);
+        janus_mutex_unlock(&context_mutex);
         return -1;
     }
 
@@ -68,11 +72,13 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             ctx->ff_rtp_demux_ctx = ff_rtp_parse_open(ctx->ff_ofmt_ctx, ctx->ff_stream, rtp_header->type, 5 * 1024 * 1024);
             if (!ctx->ff_rtp_demux_ctx) {
                 JANUS_LOG(LOG_ERR, "ctx[%p] video ff_rtp_parse_open fail\n", ctx);
+                janus_mutex_unlock(&context_mutex);
                 return -1;
             }
             RTPDynamicProtocolHandler* dpHandler = ff_rtp_handler_find_by_name("H264", AVMEDIA_TYPE_VIDEO);
             if (!dpHandler) {
                 JANUS_LOG(LOG_ERR, "ctx[%p] ff_rtp_handler_find_by_id h264 fail\n", ctx);
+                janus_mutex_unlock(&context_mutex);
                 return -1;
             }
             ff_rtp_parse_set_dynamic_protocol(ctx->ff_rtp_demux_ctx, NULL, dpHandler);
@@ -90,7 +96,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             }
             // 找到nalu头
             if (pkt.data[0] == 0x00 && pkt.data[1] == 0x00 && ((pkt.data[2] == 0x00 && pkt.data[3] == 0x01) || pkt.data[2] == 0x01)) {
-                if (ctx->avdata.v_buf != NULL) {
+                if (ctx->avdata.v_buf && ctx->rtmp) {
                     // 使用srslibrtmp推流，不考虑b帧情况
                     int ret = srs_h264_write_raw_frames(ctx->rtmp, ctx->avdata.v_buf, ctx->avdata.v_len, ctx->avdata.v_pts, ctx->avdata.v_pts);
                     if (ret != 0) {
@@ -124,6 +130,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
         int plen = 0;
         char *payload = janus_rtp_payload(buf, len, &plen);
         if(!payload) {
+            janus_mutex_unlock(&context_mutex);
             return -1;
         }
         // 解码
@@ -133,6 +140,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
         int ret = opus_decode(ctx->opus_dec, payload, plen, pcmbuf, frame_size, 0);
         if (ret <= 0) {
             JANUS_LOG(LOG_ERR, "room[%s] opus decode fail\n", room_id);
+            janus_mutex_unlock(&context_mutex);
             return -1;
         }
         // 缓存音频数据
@@ -143,6 +151,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             uint8_t* aacbuf = malloc(ctx->avdata.a_max_output_bytes);
             if (!aacbuf) {
                 JANUS_LOG(LOG_ERR, "room[%s] aacbuf malloc fail\n", room_id);
+                janus_mutex_unlock(&context_mutex);
                 return -1;
             }
             uint aaclen = faacEncEncode(ctx->aac_enc, (int32_t*)ctx->avdata.a_buf, ctx->avdata.a_input_samples, aacbuf, ctx->avdata.a_max_output_bytes);
@@ -152,13 +161,14 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             ctx->avdata.a_begin = 0;
             ctx->avdata.a_end -= ctx->avdata.a_input_samples * 2;
             // rtmp推送
-            if (aaclen > 0) {
+            if (aaclen > 0 && ctx->rtmp) {
                 // 10[AAC] 3[44khz] 1[16bit] 0[Mono]
                 ret = srs_audio_write_raw_frame(ctx->rtmp, 10, 3, 1, 0, aacbuf, aaclen, janus_get_monotonic_time() / 1000);
                 if (ret != 0) {
                     JANUS_LOG(LOG_ERR, "rtmp send audio frame fail:%d\n", ret);
                     free(aacbuf);
                     aacbuf = NULL;
+                    janus_mutex_unlock(&context_mutex);
                     return -1;
                 }
             }
@@ -166,6 +176,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             aacbuf = NULL; 
         }
     }
+    janus_mutex_unlock(&context_mutex);
     return 0;
 }
 
@@ -173,6 +184,7 @@ Stream_Context* context_create(Video_Param* vp, Audio_Param* ap, char* url) {
     Stream_Context* ctx = (Stream_Context*)malloc(sizeof(Stream_Context));
     memset(ctx, 0, sizeof(Stream_Context));
     int ret = 0;
+    JANUS_LOG(LOG_INFO, "context create ctx=%p\n", ctx);
     do {
         // 参数赋值
         ctx->ap.channels = ap->channels;
@@ -181,25 +193,25 @@ Stream_Context* context_create(Video_Param* vp, Audio_Param* ap, char* url) {
         // ffmpeg
         ret = ffmpeg_decoder_create(ctx, vp);
         if (ret < 0) {
-            JANUS_LOG(LOG_ERR, "ffmpeg decoder init fail, err=%d\n", ret);
+            JANUS_LOG(LOG_ERR, "ffmpeg decoder create fail, err=%d\n", ret);
             break;
         }
         // opus
         ret = opus_decoder_create_(ctx, ap);
         if (ret < 0) {
-            JANUS_LOG(LOG_ERR, "opus decoder init fail, err=%d\n", ret);
+            JANUS_LOG(LOG_ERR, "opus decoder create fail, err=%d\n", ret);
             break;
         }
         // faac
         ret = faac_encoder_create_(ctx, ap);
         if (ret < 0) {
-            JANUS_LOG(LOG_ERR, "opus decoder init fail, err=%d\n", ret);
+            JANUS_LOG(LOG_ERR, "faac encoder create fail, err=%d\n", ret);
             break;
         }
         // srs-librtmp
         ret = srs_rtmp_create_(ctx, url);
         if (ret < 0) {
-            JANUS_LOG(LOG_ERR, "opus decoder init fail, err=%d\n", ret);
+            JANUS_LOG(LOG_ERR, "srs-librtmp create fail, err=%d\n", ret);
             break;
         }
         return ctx;
@@ -209,13 +221,14 @@ Stream_Context* context_create(Video_Param* vp, Audio_Param* ap, char* url) {
     opus_decoder_destroy(ctx);
     faac_encoder_destroy_(ctx);
     srs_rtmp_destroy_(ctx);
+    JANUS_LOG(LOG_INFO, "##@@ context create fail, release sources\n");
     free(ctx);
     ctx = NULL;
     return NULL;
 }
 
 void context_destroy(Stream_Context* ctx) {
-	JANUS_LOG(LOG_INFO, "stream params destroy\n");
+	JANUS_LOG(LOG_INFO, "context destroy ctx=%p\n", ctx);
 	if (!ctx) {
         return;
     }
@@ -226,19 +239,20 @@ void context_destroy(Stream_Context* ctx) {
     srs_rtmp_destroy_(ctx);
     // 释放视频缓存
     if (ctx->avdata.v_buf) {
-        JANUS_LOG(LOG_INFO, "free avdata.v_buf %p\n", ctx->avdata.v_buf);
+        JANUS_LOG(LOG_INFO, "free ctx[%p] avdata.v_buf=%p\n", ctx, ctx->avdata.v_buf);
         free(ctx->avdata.v_buf);
         ctx->avdata.v_buf = NULL;
     }
     // 释放音频缓存
     if (ctx->avdata.a_buf) {
-        JANUS_LOG(LOG_INFO, "free avdata.a_buf %p\n", ctx->avdata.a_buf);
+        JANUS_LOG(LOG_INFO, "free ctx[%p] avdata.a_buf=%p\n", ctx, ctx->avdata.a_buf);
         free(ctx->avdata.a_buf);
         ctx->avdata.a_buf = NULL;
     }
     // 释放param资源
+    JANUS_LOG(LOG_INFO, "##@@ free ctx=%p\n", ctx);
     free(ctx);
-    ctx = NULL;
+    JANUS_LOG(LOG_INFO, "##@@ after free ctx\n");
     return;
 }
 
@@ -287,13 +301,19 @@ void ffmpeg_decoder_destroy(Stream_Context* ctx) {
     }
     // 释放ffmpeg的rtp解码器
     if (ctx->ff_rtp_demux_ctx) {
-        JANUS_LOG(LOG_INFO, "free ff_rtp_demux_ctx %p\n", ctx->ff_rtp_demux_ctx);
+        JANUS_LOG(LOG_INFO, "free ctx[%p] ff_rtp_demux_ctx %p\n", ctx, ctx->ff_rtp_demux_ctx);
         ff_rtp_parse_close(ctx->ff_rtp_demux_ctx);
         ctx->ff_rtp_demux_ctx = NULL;
     }
+    // 释放ffmpeg的codec上下文
+    if (ctx->ff_stream && ctx->ff_stream->codec) {
+        JANUS_LOG(LOG_INFO, "free ctx[%p] codec %p\n", ctx, ctx->ff_stream->codec);
+        avcodec_close(ctx->ff_stream->codec);
+        ctx->ff_stream->codec = NULL;
+    }
     // 释放ffmpeg解码器上下文
     if (ctx->ff_ofmt_ctx) {
-        JANUS_LOG(LOG_INFO, "free ff_ofmt_ctx %p\n", ctx->ff_ofmt_ctx);
+        JANUS_LOG(LOG_INFO, "free ctx[%p] ff_ofmt_ctx %p\n", ctx, ctx->ff_ofmt_ctx);
         avformat_free_context(ctx->ff_ofmt_ctx);
         ctx->ff_ofmt_ctx = NULL;
     }
@@ -313,7 +333,7 @@ int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap) {
 
 void opus_decoder_destroy_(Stream_Context* ctx) {
     if (ctx->opus_dec) {
-        JANUS_LOG(LOG_INFO, "free opus_dec %p\n", ctx->opus_dec);
+        JANUS_LOG(LOG_INFO, "free ctx[%p] opus_dec %p\n", ctx, ctx->opus_dec);
         opus_decoder_destroy(ctx->opus_dec);
         ctx->opus_dec = NULL;
     }
@@ -352,7 +372,7 @@ int faac_encoder_create_(Stream_Context* ctx, Audio_Param* ap) {
 
 void faac_encoder_destroy_(Stream_Context* ctx) {
     if (ctx->aac_enc) {
-        JANUS_LOG(LOG_INFO, "free aac_enc %p\n", ctx->aac_enc);
+        JANUS_LOG(LOG_INFO, "free ctx[%p] aac_enc %p\n", ctx, ctx->aac_enc);
         faacEncClose(ctx->aac_enc);
         ctx->aac_enc = NULL;
     }
@@ -389,7 +409,7 @@ int srs_rtmp_create_(Stream_Context* ctx, char* url) {
 
 void srs_rtmp_destroy_(Stream_Context* ctx) {
     if (ctx->rtmp) {
-        JANUS_LOG(LOG_INFO, "free rtmp %p\n", ctx->rtmp);
+        JANUS_LOG(LOG_INFO, "free ctx[%p] rtmp %p\n", ctx, ctx->rtmp);
         srs_rtmp_destroy(ctx->rtmp);
         ctx->rtmp = NULL;
     }
