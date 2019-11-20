@@ -6150,7 +6150,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	}
 	else
 	{
-		snprintf(url, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%lu", user_id);
+		snprintf(url, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
 	}
     rtmp_stream_open(uid, url, &tmpvp, &tmpap);
 #else
