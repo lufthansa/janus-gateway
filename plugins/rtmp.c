@@ -87,7 +87,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
                 return -1;
             }
             ff_rtp_parse_set_dynamic_protocol(ctx->ff_rtp_demux_ctx, NULL, dpHandler);
-            JANUS_LOG(LOG_INFO, "room[%s] video rtp parse prepared\n", room_id);
+            // JANUS_LOG(LOG_INFO, "room[%s] video rtp parse prepared\n", room_id);
         }
         do {
             // 解rtp包
@@ -97,8 +97,18 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             if (rv == -1 || pkt.size == 0) {
                 JANUS_LOG(LOG_ERR, "room[%s] rtp parse fail\n", room_id);
                 av_packet_unref(&pkt);
+                if (ctx->ff_rtp_demux_ctx) {
+                    ff_rtp_parse_close(ctx->ff_rtp_demux_ctx);
+                    ctx->ff_rtp_demux_ctx = NULL;
+                }
                 break;
             }
+            
+            if (ctx->ff_rtp_demux_ctx) {
+                ff_rtp_parse_close(ctx->ff_rtp_demux_ctx);
+                ctx->ff_rtp_demux_ctx = NULL;
+            }
+    
             // 找到nalu头
             if (pkt.data[0] == 0x00 && pkt.data[1] == 0x00 && ((pkt.data[2] == 0x00 && pkt.data[3] == 0x01) || pkt.data[2] == 0x01)) {
                 if (ctx->avdata.v_buf && ctx->rtmp) {
@@ -395,19 +405,19 @@ int srs_rtmp_create_(Stream_Context* ctx, char* url) {
     int ret = srs_rtmp_handshake(ctx->rtmp);
     if (0 != ret) {
         JANUS_LOG(LOG_ERR, "srs librtmp handshake fail, err:%d\n", ret);
-        srs_rtmp_destroy_(ctx->rtmp);
+        srs_rtmp_destroy(ctx->rtmp);
         return -1;
     }
     ret = srs_rtmp_connect_app(ctx->rtmp);
     if (0 != ret) {
         JANUS_LOG(LOG_ERR, "srs rtmp connect app fail, err:%d\n", ret);
-        srs_rtmp_destroy_(ctx->rtmp);
+        srs_rtmp_destroy(ctx->rtmp);
         return -1;
     }
     ret = srs_rtmp_publish_stream(ctx->rtmp);
     if (0 != ret) {
         JANUS_LOG(LOG_ERR, "srs rtmp publish stream fail, err:%d\n", ret);
-        srs_rtmp_destroy_(ctx->rtmp);
+        srs_rtmp_destroy(ctx->rtmp);
         return -1;
     }
     JANUS_LOG(LOG_INFO, "librtmp publish success\n");
