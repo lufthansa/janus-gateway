@@ -60,14 +60,12 @@ typedef struct Stream_Context {
 	faacEncHandle 		aac_enc;			// aac 编码器句柄
 	srs_rtmp_t			rtmp;				// srs-librtmp 推流句柄
 	AV_Data				avdata;				// 音视频缓存
-    Audio_Param         ap;                 // 音频参数
-	gboolean			init_flag;  		// 初始化完成标记
+    Audio_Param         ap;                 // 音频参数     
 } Stream_Context;
 
 // 保存不同roomid的参数
 static GHashTable* context_table = NULL;
 static janus_mutex context_mutex = JANUS_MUTEX_INITIALIZER;
-
 
 // 对外接口函数
 // 模块初始化
@@ -86,8 +84,8 @@ void context_destroy(Stream_Context* ctx);
 
 // 内部函数
 // ffmpeg
-static int ffmpeg_decoder_create(Stream_Context* ctx, Video_Param* vp);
-static void ffmpeg_decoder_destroy(Stream_Context* ctx);
+static int ffmpeg_decoder_create_(Stream_Context* ctx, Video_Param* vp);
+static void ffmpeg_decoder_destroy_(Stream_Context* ctx);
 // opus
 static int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap);
 static void opus_decoder_destroy_(Stream_Context* ctx);
