@@ -5993,6 +5993,10 @@ static int wbx_get_port()
 
 static void wbx_return_port(int index)
 {
+#ifdef USE_FFMPEG_API
+    return;
+#endif
+
 	JANUS_LOG(LOG_INFO, "willche in wbx_return_port %d \n", index);
 
 	janus_mutex_lock(&wbx_port_mutex);
