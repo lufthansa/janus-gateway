@@ -94,21 +94,18 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             AVPacket pkt;
             av_init_packet(&pkt);
             rv = ff_rtp_parse_packet(ctx->ff_rtp_demux_ctx, &pkt, rv == 1 ? NULL : &buf, len);
-            if (rv == -1 || pkt.size == 0) {
-                JANUS_LOG(LOG_ERR, "room[%s] rtp parse fail\n", room_id);
-                av_packet_unref(&pkt);
-                if (ctx->ff_rtp_demux_ctx) {
-                    ff_rtp_parse_close(ctx->ff_rtp_demux_ctx);
-                    ctx->ff_rtp_demux_ctx = NULL;
-                }
-                break;
-            }
-            
+
             if (ctx->ff_rtp_demux_ctx) {
                 ff_rtp_parse_close(ctx->ff_rtp_demux_ctx);
                 ctx->ff_rtp_demux_ctx = NULL;
             }
-    
+
+            if (rv == -1 || pkt.size == 0) {
+                JANUS_LOG(LOG_ERR, "room[%s] rtp parse fail\n", room_id);
+                av_packet_unref(&pkt);
+                break;
+            }
+
             // 找到nalu头
             if (pkt.data[0] == 0x00 && pkt.data[1] == 0x00 && ((pkt.data[2] == 0x00 && pkt.data[3] == 0x01) || pkt.data[2] == 0x01)) {
                 if (ctx->avdata.v_buf && ctx->rtmp) {
@@ -196,7 +193,11 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
 }
 
 Stream_Context* context_create(Video_Param* vp, Audio_Param* ap, char* url) {
-    int ret = 0;    
+    int ret = 0;
+    if (!vp || !ap || !url) {
+        JANUS_LOG(LOG_ERR, "stream context create input error\n");
+        return -1;
+    }
     Stream_Context* ctx = g_malloc0(sizeof(Stream_Context));
     if (!ctx) {
         JANUS_LOG(LOG_ERR, "Stream_Context malloc fail\n");
@@ -274,6 +275,10 @@ void context_destroy(Stream_Context* ctx) {
 }
 
 int ffmpeg_decoder_create_(Stream_Context* ctx, Video_Param* vp) {
+    if (!ctx || !vp) {
+        JANUS_LOG(LOG_ERR, "ffmpeg decoder create input error\n");
+        return -1;
+    }
     // ffmpeg ctx
     int ret = avformat_alloc_output_context2(&ctx->ff_ofmt_ctx, NULL, "flv", "");
     if (ret < 0) {
@@ -338,6 +343,10 @@ void ffmpeg_decoder_destroy_(Stream_Context* ctx) {
 }
 
 int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap) {
+    if (!ctx || !ap) {
+        JANUS_LOG(LOG_ERR, "srs rtmp create input error\n");
+        return -1;
+    }
     int err = 0;
     ctx->opus_dec = opus_decoder_create(ap->sample_rate, ap->channels, &err);
     if (err != OPUS_OK) {
@@ -349,7 +358,7 @@ int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap) {
 }
 
 void opus_decoder_destroy_(Stream_Context* ctx) {
-    if (ctx->opus_dec) {
+    if (ctx && ctx->opus_dec) {
         JANUS_LOG(LOG_INFO, "destroy ctx[%p] opus_dec %p\n", ctx, ctx->opus_dec);
         opus_decoder_destroy(ctx->opus_dec);
         ctx->opus_dec = NULL;
@@ -358,6 +367,10 @@ void opus_decoder_destroy_(Stream_Context* ctx) {
 }
 
 int faac_encoder_create_(Stream_Context* ctx, Audio_Param* ap) {
+    if (!ctx || !ap) {
+        JANUS_LOG(LOG_ERR, "faac encoder create input error\n");
+        return -1;
+    }
     // 打开编码器
     ctx->aac_enc = faacEncOpen(ap->sample_rate, ap->channels, &ctx->avdata.a_input_samples, &ctx->avdata.a_max_output_bytes);
     if (!ctx->aac_enc) {
@@ -388,7 +401,7 @@ int faac_encoder_create_(Stream_Context* ctx, Audio_Param* ap) {
 }
 
 void faac_encoder_destroy_(Stream_Context* ctx) {
-    if (ctx->aac_enc) {
+    if (ctx && ctx->aac_enc) {
         JANUS_LOG(LOG_INFO, "destroy ctx[%p] aac_enc %p\n", ctx, ctx->aac_enc);
         faacEncClose(ctx->aac_enc);
         ctx->aac_enc = NULL;
@@ -397,6 +410,10 @@ void faac_encoder_destroy_(Stream_Context* ctx) {
 }
 
 int srs_rtmp_create_(Stream_Context* ctx, char* url) {
+    if (!ctx || !url) {
+        JANUS_LOG(LOG_ERR, "srs rtmp create input error\n");
+        return -1;
+    }
     ctx->rtmp = srs_rtmp_create(url);
     if (!ctx->rtmp) {
         JANUS_LOG(LOG_ERR, "srs rtmp create fail\n");
@@ -406,18 +423,21 @@ int srs_rtmp_create_(Stream_Context* ctx, char* url) {
     if (0 != ret) {
         JANUS_LOG(LOG_ERR, "srs librtmp handshake fail, err:%d\n", ret);
         srs_rtmp_destroy(ctx->rtmp);
+        ctx->rtmp = NULL;
         return -1;
     }
     ret = srs_rtmp_connect_app(ctx->rtmp);
     if (0 != ret) {
         JANUS_LOG(LOG_ERR, "srs rtmp connect app fail, err:%d\n", ret);
         srs_rtmp_destroy(ctx->rtmp);
+        ctx->rtmp = NULL;
         return -1;
     }
     ret = srs_rtmp_publish_stream(ctx->rtmp);
     if (0 != ret) {
         JANUS_LOG(LOG_ERR, "srs rtmp publish stream fail, err:%d\n", ret);
         srs_rtmp_destroy(ctx->rtmp);
+        ctx->rtmp = NULL;
         return -1;
     }
     JANUS_LOG(LOG_INFO, "librtmp publish success\n");
@@ -425,7 +445,7 @@ int srs_rtmp_create_(Stream_Context* ctx, char* url) {
 }
 
 void srs_rtmp_destroy_(Stream_Context* ctx) {
-    if (ctx->rtmp) {
+    if (ctx && ctx->rtmp) {
         JANUS_LOG(LOG_INFO, "destroy ctx[%p] rtmp %p\n", ctx, ctx->rtmp);
         srs_rtmp_destroy(ctx->rtmp);
         ctx->rtmp = NULL;
