@@ -153,7 +153,8 @@ EXT_LIBS = \
 	$(DEFAULT_LIBS_DIR)/libavutil.so \
 	$(DEFAULT_LIBS_DIR)/libsrsrtmp.so \
 	$(DEFAULT_LIBS_DIR)/libfaac.so \
-	$(DEFAULT_LIBS_DIR)/libopus.so
+	$(DEFAULT_LIBS_DIR)/libopus.so \
+	$(DEFAULT_LIBS_DIR)/libsamplerate.so
     
 janus_LDADD = \
 	$(BORINGSSL_LIBS) \

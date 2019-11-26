@@ -10,6 +10,7 @@
 #include <opus/opus.h>
 #include <faac.h>
 #include <faaccfg.h>
+#include <samplerate.h>
 #include "../mutex.h"
 	
 
@@ -57,10 +58,12 @@ typedef struct Stream_Context {
 	AVStream* 			ff_stream;			// ffmpeg 视频流参数
 	RTPDemuxContext*	ff_rtp_demux_ctx;	// ffmpeg rtp上下文句柄
 	OpusDecoder* 		opus_dec;			// opus 解码器句柄
+    SRC_STATE*          sample_handle;      // samplerate 重采样句柄
+    double              sample_ratio;       // 重采样转换率
 	faacEncHandle 		aac_enc;			// aac 编码器句柄
 	srs_rtmp_t			rtmp;				// srs-librtmp 推流句柄
 	AV_Data				avdata;				// 音视频缓存
-    Audio_Param         ap;                 // 音频参数     
+    Audio_Param         ap;                 // 源pcm音频参数     
 } Stream_Context;
 
 // 保存不同roomid的参数
@@ -89,6 +92,9 @@ static void ffmpeg_decoder_destroy_(Stream_Context* ctx);
 // opus
 static int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap);
 static void opus_decoder_destroy_(Stream_Context* ctx);
+// resample
+static int resample_create_(Stream_Context* ctx, Audio_Param* ap);
+static void resample_destroy_(Stream_Context* ctx);
 // faac
 static int faac_encoder_create_(Stream_Context* ctx, Audio_Param* ap);
 static void faac_encoder_destroy_(Stream_Context* ctx);
