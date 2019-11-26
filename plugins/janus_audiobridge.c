@@ -4381,6 +4381,7 @@ static void *janus_audiobridge_mixer_thread(void *data) {
 		for(i=0; i<samples; i++)
 			buffer[i] = 0;
 		ps = participants_list;
+        
 		while(ps) {
 			janus_audiobridge_participant *p = (janus_audiobridge_participant *)ps->data;
 			janus_mutex_lock(&p->qmutex);
@@ -4404,8 +4405,10 @@ static void *janus_audiobridge_mixer_thread(void *data) {
 			janus_mutex_unlock(&p->qmutex);
 			ps = ps->next;
 		}
+        
 		/* Are we recording the mix? (only do it if there's someone in, though...) */
-		if(audiobridge->recording != NULL && g_list_length(participants_list) > 0) {
+		if(audiobridge->recording != NULL && g_list_length(participants_list) > 0) 
+        {
 			for(i=0; i<samples; i++) {
 				/* FIXME Smoothen/Normalize instead of truncating? */
 				outBuffer[i] = buffer[i];
@@ -4430,6 +4433,7 @@ static void *janus_audiobridge_mixer_thread(void *data) {
 				}
 			}
 		}
+        
 		/* Send proper packet to each participant (remove own contribution) */
 		ps = participants_list;
 		while(ps) {
@@ -4476,6 +4480,7 @@ static void *janus_audiobridge_mixer_thread(void *data) {
 			janus_refcount_decrease(&p->ref);
 			ps = ps->next;
 		}
+        
 		g_list_free(participants_list);
 		/* Forward the mixed packet as RTP to any RTP forwarder that may be listening */
 		janus_mutex_lock(&audiobridge->rtp_mutex);
@@ -4531,6 +4536,7 @@ static void *janus_audiobridge_mixer_thread(void *data) {
 		}
 		janus_mutex_unlock(&audiobridge->rtp_mutex);
 	}
+     
 	if(audiobridge->recording) {
 		/* Update the length in the header */
 		fseek(audiobridge->recording, 0, SEEK_END);
@@ -4574,6 +4580,7 @@ static void *janus_audiobridge_mixer_thread(void *data) {
 			gateway->notify_event(&janus_audiobridge_plugin, NULL, info);
 		}
 	}
+    
 	g_free(rtpbuffer);
 	JANUS_LOG(LOG_VERB, "Leaving mixer thread for room %"SCNu64" (%s)...\n", audiobridge->room_id, audiobridge->room_name);
 

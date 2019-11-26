@@ -1295,6 +1295,7 @@ typedef enum wxs_videoroom_p_role {
 	wxs_videoroom_p_role_presenter,             //
 	wxs_videoroom_p_role_asker,                 //
 	wxs_videoroom_p_role_producer_presenter,    // the producer's presenter for asker to sub
+	wxs_videoroom_p_role_producer_pull,         // role for jack
 } wxs_videoroom_p_role;
 
 typedef struct wxs_videoroom_message {
@@ -1313,6 +1314,7 @@ typedef struct wxs_videoroom {
     // willche add : one junus session has many room session. we need janus session id to decide if a new join cmd can accept or not
 	guint64 asker_id;	        /* current asker session ID in the room */
 	guint64 producer_id;	    /* Producer`s janus session ID in the room */
+	guint64 producer_pull_id;	/* Producer`s janus session ID in the room to subscribe others */
 	guint64 producer_share_id;	/* Producer`s presenter janus session ID in the room */
     struct wxs_videoroom_publisher* asker;
     struct wxs_videoroom_publisher* producer;
@@ -6322,6 +6324,7 @@ static wxs_videoroom * wbx_create_room(const gchar* room_id, const gchar* roomde
 
     videoroom->producer_id = 0;
     videoroom->producer_share_id = 0;
+    videoroom->producer_pull_id = 0;
     videoroom->asker_id = 0;
 
 	char audio_codecs[100], video_codecs[100];
@@ -7239,6 +7242,10 @@ static int wbx_handler_join_as_publisher(wxs_videoroom_session* session, wxs_vid
         videoroom->producer = publisher;
         videoroom->producer_id = wbx_get_janus_session(session);
     }
+    if(role_id == wxs_videoroom_p_role_producer_pull)
+    {
+        videoroom->producer_pull_id = wbx_get_janus_session(session);
+    }
     
     publisher->publisher_role = role_id;
     session->publisher_role = role_id;
@@ -7385,18 +7392,28 @@ static int wbx_handler_join_as_subscriber(wxs_videoroom_session* session, wxs_vi
         //     to judge if this janus session can sub.
         gint64 janus_session_id = wbx_get_janus_session(session);
         gint64 target_session_id = wbx_get_janus_session(publisher->session);
-        if(
-            // only current asker and producer can sub 
-            (janus_session_id != videoroom->asker_id && janus_session_id != videoroom->producer_id)
+        
+        JANUS_LOG(LOG_WARN, "sessionid = %lu, target id == %lu, producer id = %lu, asker id = %lu, share id = %lu\n",
+            janus_session_id, target_session_id, videoroom->producer_id, videoroom->asker_id, videoroom->producer_share_id);
+        
+        // only three role can sub stream, current asker, producer, producer puller.
+        do {
+            // producer can sub all stream
+            if(janus_session_id == videoroom->producer_id)
+                break;
+            // pull id for jack, can sub all stream.
+            if(janus_session_id == videoroom->producer_pull_id)
+                break;
             // current asker can only ask producer presenter
-            || (janus_session_id == videoroom->asker_id && target_session_id != videoroom->producer_share_id))
-        {
+            if(janus_session_id == videoroom->asker_id && target_session_id == videoroom->producer_share_id)
+                break;
+            
 			JANUS_LOG(LOG_ERR, "Invalid role only producer can sub all publisher, current asker can only sub producer`s present\n");
             *error_code = JANUS_VIDEOROOM_ERROR_ROLE_ERROR;
 			g_snprintf(error_cause, 512, "Invalid role only producer can sub all publish, asker can only sub producer");
             janus_mutex_unlock(&videoroom->mutex);
             return ret;
-        }
+        } while(0)
         
 		/* Increase the refcount before unlocking so that nobody can remove and free the publisher in the meantime. */
 		janus_refcount_increase(&publisher->ref);
