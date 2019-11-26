@@ -7413,7 +7413,7 @@ static int wbx_handler_join_as_subscriber(wxs_videoroom_session* session, wxs_vi
 			g_snprintf(error_cause, 512, "Invalid role only producer can sub all publish, asker can only sub producer");
             janus_mutex_unlock(&videoroom->mutex);
             return ret;
-        } while(0)
+        } while(0);
         
 		/* Increase the refcount before unlocking so that nobody can remove and free the publisher in the meantime. */
 		janus_refcount_increase(&publisher->ref);
