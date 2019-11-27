@@ -48,6 +48,7 @@ typedef struct AV_Data {
     uint8_t* 	a_buf;					// 音频pcm数据buf
     int 		a_begin;     			// 音频pcm有效数据起始位置
     int 		a_end;       			// 音频pcm有效数据结束位置
+    uint32_t    a_pts;                  // 音频帧时间戳
 	ulong 		a_input_samples;		// pcm解码样本数，一个采样深度(16bit)算一个样本
 	ulong 		a_max_output_bytes;		// aac编码后缓存最大长度    
 } AV_Data;

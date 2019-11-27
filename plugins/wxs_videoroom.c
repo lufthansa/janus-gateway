@@ -6438,7 +6438,7 @@ static int wbx_get_publisher_list(wxs_videoroom_publisher* publisher)
 }
 
 static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session, 
-            json_t *root, json_t* response, int *error_code, char *error_cause)
+            json_t *root, json_t** response, int *error_code, char *error_cause)
 {    
     int ret = -1;
 
@@ -6640,7 +6640,7 @@ static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session,
 		data_handle = wxs_videoroom_rtp_forwarder_add_helper(publisher, host, data_port, 0, 0, 0, FALSE, 0, NULL, 0, FALSE, TRUE);
 	}
 	janus_mutex_unlock(&videoroom->mutex);
-	response = json_object();
+	*response = json_object();
 	json_t *rtp_stream = json_object();
 	if(audio_handle > 0) {
 		json_object_set_new(rtp_stream, "audio_stream_id", json_integer(audio_handle));
@@ -6734,10 +6734,10 @@ static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session,
 	janus_refcount_decrease(&publisher->ref);
 	janus_refcount_decrease(&videoroom->ref);
 	json_object_set_new(rtp_stream, "host", json_string(host));
-	json_object_set_new(response, "publisher_id", json_integer(publisher_id));
-	json_object_set_new(response, "rtp_stream", rtp_stream);
-	json_object_set_new(response, "room", json_string(room_id));
-	json_object_set_new(response, "videoroom", json_string("rtp_forward"));
+	json_object_set_new(*response, "publisher_id", json_integer(publisher_id));
+	json_object_set_new(*response, "rtp_stream", rtp_stream);
+	json_object_set_new(*response, "room", json_string(room_id));
+	json_object_set_new(*response, "videoroom", json_string("rtp_forward"));
 
 	// willche if no error, start ffmpeg rtp->rtmp shell
 	janus_mutex_lock(&ffmpegps_mutex);
@@ -6821,9 +6821,9 @@ static int wbx_sync_handler_change_stream(wxs_videoroom_session *session,
         {
             wxs_videoroom_publisher *p = value;
             if(p && p->session && p->user_id == present_id) {
-                response = json_object();
+                *response = json_object();
                 json_t* publishcmd = json_object();
-                json_object_set_new(response, "videoroom", json_string("success"));
+                json_object_set_new(*response, "videoroom", json_string("success"));
                 if(publish_type)
                 {
                     json_object_set_new(publishcmd, "videoroom", json_string("highbitrate"));
@@ -6833,7 +6833,7 @@ static int wbx_sync_handler_change_stream(wxs_videoroom_session *session,
                     json_object_set_new(publishcmd, "videoroom", json_string("lowbitrate"));
                 }
                 json_object_set_new(publishcmd, "room", json_string(publisher->room_id));
-                json_object_set_new(response, "room", json_string(publisher->room_id));
+                json_object_set_new(*response, "room", json_string(publisher->room_id));
                 JANUS_LOG(LOG_INFO, "Notifying participant %"SCNu64" (%s)\n", p->user_id, p->display ? p->display : "??");
 
                 // notify presenter change bitrate
@@ -6878,8 +6878,9 @@ static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session
         
         wxs_videoroom_publisher *p = room->producer;
         json_t* beaskercmd = json_object();
-        json_object_set_new(response, "videoroom", json_string("success"));
-        json_object_set_new(response, "room", json_integer(publisher->room_id));
+        *response = json_object();
+        json_object_set_new(*response, "videoroom", json_string("success"));
+        json_object_set_new(*response, "room", json_integer(publisher->room_id));
     
         json_object_set_new(beaskercmd, "videoroom", json_string("wantbeasker"));
         json_object_set_new(beaskercmd, "userid", json_integer(publisher->user_id));
@@ -6949,9 +6950,9 @@ static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *sessio
                     return ret;
                 }
 
-                response = json_object();
-                json_object_set_new(response, "videoroom", json_string("success"));
-                json_object_set_new(response, "room", json_string(publisher->room_id));
+                *response = json_object();
+                json_object_set_new(*response, "videoroom", json_string("success"));
+                json_object_set_new(*response, "room", json_string(publisher->room_id));
                 
                 // TODO : kick old producer`s presenter
                 // ...
@@ -7023,10 +7024,10 @@ static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *me
         {
             wxs_videoroom_publisher *p = value;
             if(p && p->session && p->user_id == asker_id) {
-                response = json_object();
+                *response = json_object();
                 json_t* beaskercmd = json_object();
-                json_object_set_new(response, "videoroom", json_string("success"));
-                json_object_set_new(response, "room", json_string(publisher->room_id));
+                json_object_set_new(*response, "videoroom", json_string("success"));
+                json_object_set_new(*response, "room", json_string(publisher->room_id));
                 
                 json_object_set_new(beaskercmd, "videoroom", json_string("beasker"));                
                 json_object_set_new(beaskercmd, "room", json_string(publisher->room_id));

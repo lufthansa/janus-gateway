@@ -69,9 +69,9 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
         janus_mutex_unlock(&context_mutex);
         return -1;
     }
+    janus_rtp_header *rtp_header = (janus_rtp_header *)buf;
     if (av == Media_Video) {
         int rv = 0;
-        janus_rtp_header *rtp_header = (janus_rtp_header *)buf;
         // rtp解包
         if (!ctx->ff_rtp_demux_ctx) {
             ctx->ff_rtp_demux_ctx = ff_rtp_parse_open(ctx->ff_ofmt_ctx, ctx->ff_stream, rtp_header->type, 5 * 1024 * 1024);
@@ -110,6 +110,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             if (pkt.data[0] == 0x00 && pkt.data[1] == 0x00 && ((pkt.data[2] == 0x00 && pkt.data[3] == 0x01) || pkt.data[2] == 0x01)) {
                 if (ctx->avdata.v_buf && ctx->rtmp) {
                     // 使用srslibrtmp推流，不考虑b帧情况
+                    // JANUS_LOG(LOG_INFO, ("h264 type = %d\n", pkt.data[5] & 0x1f);
                     int ret = srs_h264_write_raw_frames(ctx->rtmp, ctx->avdata.v_buf, ctx->avdata.v_len, ctx->avdata.v_pts, ctx->avdata.v_pts);
                     if (ret != 0) {
                         JANUS_LOG(LOG_ERR, "h264 frame push to rtmp server fail: %d\n", ret);
@@ -119,8 +120,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
                     g_free(ctx->avdata.v_buf);
                     ctx->avdata.v_buf = NULL;
                     ctx->avdata.v_len = 0;
-                    // pts必须放在此处计算
-                    ctx->avdata.v_pts = janus_get_monotonic_time() / 1000;
+                    ctx->avdata.v_pts = ntohl(rtp_header->timestamp) / 90;
                 }
                 ctx->avdata.v_buf = g_malloc0(pkt.size);
                 memcpy(ctx->avdata.v_buf, pkt.data, pkt.size);
@@ -137,6 +137,8 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             }
             av_packet_unref(&pkt);
         } while(rv == 1);
+        // JANUS_LOG(LOG_INFO, "rtp h264 seq=%u, pts_raw=%lu, pts_calc=%lu ms\n", 
+        //     ntohs(rtp_header->seq_number), ntohl(rtp_header->timestamp), ntohl(rtp_header->timestamp) / 90);
     } else if (av == Media_Audio) {
         // 找到rtp的payload
         int plen = 0;
@@ -157,9 +159,9 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
         }
         // 重采样
         int pcm_samples = pcmlen / 2;   // 16bit为一个sample
-        float* fpcmbuf = g_malloc(sizeof(float) * pcm_samples);   // 类型转换，长度不变
+        float* fpcmbuf = g_malloc0(sizeof(float) * pcm_samples);   // 类型转换，长度不变
         src_short_to_float_array(pcmbuf, fpcmbuf, pcm_samples);
-        float* fpcm44buf = g_malloc(sizeof(float) * pcm_samples);
+        float* fpcm44buf = g_malloc0(sizeof(float) * pcm_samples);
         SRC_DATA data = {
             .data_in = fpcmbuf,
             .input_frames = pcm_samples,
@@ -176,7 +178,7 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
             return -1;
         }
         // JANUS_LOG(LOG_INFO, "resample pcm_samples=%d, used=%d, gen=%d\n", pcm_samples, data.input_frames_used, data.output_frames_gen);
-        uint16_t* pcm44buf = g_malloc(sizeof(uint16_t) * data.output_frames_gen);
+        uint16_t* pcm44buf = g_malloc0(sizeof(uint16_t) * data.output_frames_gen);
         src_float_to_short_array(fpcm44buf, pcm44buf, data.output_frames_gen);
         // 缓存音频数据
         memcpy(ctx->avdata.a_buf + ctx->avdata.a_end, pcm44buf, data.output_frames_gen * 2);
@@ -195,15 +197,10 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
                 return -1;
             }
             uint aaclen = faacEncEncode(ctx->aac_enc, (int32_t*)ctx->avdata.a_buf, ctx->avdata.a_input_samples, aacbuf, ctx->avdata.a_max_output_bytes);
-            ctx->avdata.a_begin += ctx->avdata.a_input_samples * 2;
-            // 数据移位
-            memcpy(ctx->avdata.a_buf, ctx->avdata.a_buf + ctx->avdata.a_begin, ctx->avdata.a_end - ctx->avdata.a_begin);
-            ctx->avdata.a_begin = 0;
-            ctx->avdata.a_end -= ctx->avdata.a_input_samples * 2;
             // rtmp推送
             if (aaclen > 0 && ctx->rtmp) {
                 // 10[format AAC] 3[rate 44khz] 1[size 16bit] 0[type Mono]
-                ret = srs_audio_write_raw_frame(ctx->rtmp, 10, 3, 1, 0, aacbuf, aaclen, janus_get_monotonic_time() / 1000);
+                ret = srs_audio_write_raw_frame(ctx->rtmp, 10, 3, 1, 0, aacbuf, aaclen, ctx->avdata.a_pts);
                 if (ret != 0) {
                     JANUS_LOG(LOG_ERR, "rtmp send audio frame fail:%d\n", ret);
                     g_free(aacbuf), aacbuf = NULL;
@@ -212,6 +209,12 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
                 }
             }
             g_free(aacbuf), aacbuf = NULL; 
+            // 数据移位
+            ctx->avdata.a_begin += ctx->avdata.a_input_samples * 2;
+            memcpy(ctx->avdata.a_buf, ctx->avdata.a_buf + ctx->avdata.a_begin, ctx->avdata.a_end - ctx->avdata.a_begin);
+            ctx->avdata.a_begin = 0;
+            ctx->avdata.a_end -= ctx->avdata.a_input_samples * 2;
+            ctx->avdata.a_pts = ntohl(rtp_header->timestamp) / (ctx->ap.sample_rate / 1000);
         }
     }
     janus_mutex_unlock(&context_mutex);
