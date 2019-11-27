@@ -2875,9 +2875,9 @@ void janus_transport_incoming_request(janus_transport *plugin, janus_transport_s
 	janus_request *request = janus_request_new(plugin, transport, request_id, admin, message);
 	/* Enqueue the request, the thread will pick it up */
     
-	JANUS_LOG(LOG_INFO, "in janus_transport_incoming_request before push\n");
+	JANUS_LOG(LOG_VERB, "in janus_transport_incoming_request before push\n");
 	g_async_queue_push(requests, request);
-	JANUS_LOG(LOG_INFO, "in janus_transport_incoming_request after push\n");
+	JANUS_LOG(LOG_VERB, "in janus_transport_incoming_request after push\n");
 }
 
 void janus_transport_gone(janus_transport *plugin, janus_transport_session *transport) {

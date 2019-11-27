@@ -1614,15 +1614,15 @@ static int wbx_noti_publisher(wxs_videoroom* videoroom, const char* noti);
 static int wbx_get_publisher_list(wxs_videoroom_publisher* publisher);
 
 static int wbx_sync_handler_change_stream(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause);
+            json_t *message, json_t** response, int *error_code, char *error_cause);
 static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause);
+            json_t *message, json_t** response, int *error_code, char *error_cause);
 static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause);
-static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *message, json_t* response,
+            json_t *message, json_t** response, int *error_code, char *error_cause);
+static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *message, json_t** response,
         	int *error_code, char *error_cause);
 static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session, 
-            json_t *root, json_t* response, int *error_code, char *error_cause);
+            json_t *root, json_t** response, int *error_code, char *error_cause);
 
 static int wbx_handler_subscriber_request(wxs_videoroom_session* session, json_t* root,
         wxs_videoroom_message *msg, int *error_code, char *error_cause, const char *request_text, gboolean sdp_update, json_t** event);
@@ -3959,24 +3959,24 @@ static json_t *wxs_videoroom_process_synchronous_request(wxs_videoroom_session *
 		goto prepare_response;
     }
     else if(!strcasecmp(request_text, "rtp_forward")) {
-        wbx_sync_handler_rtp_forward(session, root, response, &error_code, error_cause);
+        wbx_sync_handler_rtp_forward(session, root, &response, &error_code, error_cause);
         goto prepare_response;
     }
     else if (!strcasecmp(request_text, "changestream")) {
         response = json_object();
-        wbx_sync_handler_change_stream(session, message, response, &error_code, error_cause);
+        wbx_sync_handler_change_stream(session, message, &response, &error_code, error_cause);
         goto prepare_response;
 	}else if (!strcasecmp(request_text, "wantbeasker")) {
         response = json_object();
-        wbx_sync_handler_want_be_current_asker(session, message, response, &error_code, error_cause);
+        wbx_sync_handler_want_be_current_asker(session, message, &response, &error_code, error_cause);
         goto prepare_response;
     }else if (!strcasecmp(request_text, "setcurrentasker")) {
         response = json_object();
-        wbx_sync_handler_set_asker(session, message, response, &error_code, error_cause);
+        wbx_sync_handler_set_asker(session, message, &response, &error_code, error_cause);
         goto prepare_response;
     }else if (!strcasecmp(request_text, "prodecerpresenter")) {
         response = json_object();
-        wbx_sync_handler_set_producer_publisher(session, message, response, &error_code, error_cause);
+        wbx_sync_handler_set_producer_publisher(session, message, &response, &error_code, error_cause);
         goto prepare_response;
     }else if (!strcasecmp(request_text, "prodecerlist")) {
         // TODO : if needed
@@ -6784,7 +6784,7 @@ static int wbx_sync_handler_rtp_forward(wxs_videoroom_session *session,
 
 // producer ask presenter to change bitrate
 static int wbx_sync_handler_change_stream(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause)
+            json_t *message, json_t** response, int *error_code, char *error_cause)
 {
     int ret = - 1;
     
@@ -6859,7 +6859,7 @@ static int wbx_sync_handler_change_stream(wxs_videoroom_session *session,
 
 // a asker want be a current asker
 static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause)
+            json_t *message, json_t** response, int *error_code, char *error_cause)
 {
     int ret = -1;
     
@@ -6906,7 +6906,7 @@ static int wbx_sync_handler_want_be_current_asker(wxs_videoroom_session *session
 // this func call by producer cmd, set the producer's asker publisher.
 // only current asker can sub this publisher.
 static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *session, 
-            json_t *message, json_t* response, int *error_code, char *error_cause)
+            json_t *message, json_t** response, int *error_code, char *error_cause)
 {
     int ret = -1;
 
@@ -6981,7 +6981,7 @@ static int wbx_sync_handler_set_producer_publisher(wxs_videoroom_session *sessio
 }
 
 // producer set current asker, only current asker can subscribe the producer`s asker stream.
-static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *message, json_t* response,
+static int wbx_sync_handler_set_asker(wxs_videoroom_session *session, json_t *message, json_t** response,
         	int *error_code, char *error_cause)
 {
     int ret = -1;
@@ -7142,7 +7142,7 @@ static int wbx_handler_join_as_publisher(wxs_videoroom_session* session, wxs_vid
 		}
 	}
     
-	JANUS_LOG(LOG_INFO, "  -- add Publisher ID: %"SCNu64" session id = %lu\n", user_id, videoroom->producer_id);
+	JANUS_LOG(LOG_INFO, "  -- add Publisher ID: %"SCNu64" session id = %lu role = %d\n", user_id, wbx_get_janus_session(session), role_id);
 	/* Process the request */
 	json_t *audio = NULL, *video = NULL, *data = NULL,
 		*bitrate = NULL, *record = NULL, *recfile = NULL;
