@@ -27,12 +27,6 @@ typedef enum {
     Format_Float = 4
 } AudioInputFormat;
 
-// 视频参数定义
-typedef struct Video_Param {
-    int width;
-    int height;
-} Video_Param;
-
 // 音频参数定义
 typedef struct Audio_Param {
     int channels;
@@ -75,20 +69,20 @@ static janus_mutex context_mutex = JANUS_MUTEX_INITIALIZER;
 // 模块初始化
 void rtmp_module_init(void);
 // 准备推流
-int rtmp_stream_open(char* room_id, char* url, Video_Param* vp, Audio_Param* ap);
+int rtmp_stream_open(char* room_id, char* url, Audio_Param* ap);
 // 结束推流
 void rtmp_stream_close(char* room_id);
 // 推流
 int rtmp_stream_push(char* room_id, char *buf, int len, Media_Type av);
 
 // stream_context创建函数
-Stream_Context* context_create(Video_Param* vp, Audio_Param* ap, char* url);
+Stream_Context* context_create(Audio_Param* ap, char* url);
 // stream_context销毁函数
 void context_destroy(Stream_Context* ctx);
 
 // 内部函数
 // ffmpeg
-static int ffmpeg_decoder_create_(Stream_Context* ctx, Video_Param* vp);
+static int ffmpeg_decoder_create_(Stream_Context* ctx);
 static void ffmpeg_decoder_destroy_(Stream_Context* ctx);
 // opus
 static int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap);

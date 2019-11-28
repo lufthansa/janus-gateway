@@ -20,7 +20,6 @@ void print_malloc(char* dest, char* log)
 void rtmp_module_init() {
     // ffmpeg
     avcodec_register_all();
-    avformat_network_init();
     // hashtable
     context_table = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)context_destroy);
     if (!context_table) {
@@ -30,10 +29,10 @@ void rtmp_module_init() {
     return;
 }
 
-int rtmp_stream_open(char* room_id, char* url, Video_Param* vp, Audio_Param* ap) {
+int rtmp_stream_open(char* room_id, char* url, Audio_Param* ap) {
     JANUS_LOG(LOG_INFO, "rtmp open, roomid[%s], url[%s]\n", room_id, url);
     janus_mutex_lock(&context_mutex);  
-    Stream_Context* ctx = context_create(vp, ap, url);
+    Stream_Context* ctx = context_create(ap, url);
     if (!ctx) {
         JANUS_LOG(LOG_ERR, "stream_context create fail\n");
         janus_mutex_unlock(&context_mutex);
@@ -221,9 +220,9 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
     return 0;
 }
 
-Stream_Context* context_create(Video_Param* vp, Audio_Param* ap, char* url) {
+Stream_Context* context_create(Audio_Param* ap, char* url) {
     int ret = 0;
-    if (!vp || !ap || !url) {
+    if (!ap || !url) {
         JANUS_LOG(LOG_ERR, "stream context create input error\n");
         return -1;
     }
@@ -239,7 +238,7 @@ Stream_Context* context_create(Video_Param* vp, Audio_Param* ap, char* url) {
         ctx->ap.input_format = ap->input_format;
         ctx->ap.sample_rate = ap->sample_rate;
         // ffmpeg
-        ret = ffmpeg_decoder_create_(ctx, vp);
+        ret = ffmpeg_decoder_create_(ctx);
         if (ret < 0) {
             JANUS_LOG(LOG_ERR, "ffmpeg decoder create fail, err=%d\n", ret);
             break;
@@ -311,19 +310,19 @@ void context_destroy(Stream_Context* ctx) {
     return;
 }
 
-int ffmpeg_decoder_create_(Stream_Context* ctx, Video_Param* vp) {
-    if (!ctx || !vp) {
+int ffmpeg_decoder_create_(Stream_Context* ctx) {
+    if (!ctx) {
         JANUS_LOG(LOG_ERR, "ffmpeg decoder create input error\n");
         return -1;
     }
-    // ffmpeg ctx
+    // 创建AVFormatContext
     int ret = avformat_alloc_output_context2(&ctx->ff_ofmt_ctx, NULL, "flv", "");
     if (ret < 0) {
         JANUS_LOG(LOG_ERR, "avformat alloc output context2 fail, err:%s\n", av_err2str(ret));
         return -1;
     }
-    // ffmpeg video
-    AVCodec* pCodec = avcodec_find_encoder(AV_CODEC_ID_H264);
+    // 找到h264解码器
+    AVCodec* pCodec = avcodec_find_decoder(AV_CODEC_ID_H264);
     if (!pCodec) {
         JANUS_LOG(LOG_ERR, "avcodec h264 not found\n");
         avformat_free_context(ctx->ff_ofmt_ctx);
@@ -339,12 +338,7 @@ int ffmpeg_decoder_create_(Stream_Context* ctx, Video_Param* vp) {
     ctx->ff_stream->codec->codec_id = pCodec->id;
     ctx->ff_stream->codec->codec_type = AVMEDIA_TYPE_VIDEO;
     ctx->ff_stream->codec->pix_fmt = AV_PIX_FMT_YUV420P;
-    ctx->ff_stream->codec->width = vp->width;
-    ctx->ff_stream->codec->height = vp->height;
-    ctx->ff_stream->codec->time_base = (AVRational){1, 1000};
-    if (ctx->ff_ofmt_ctx->oformat->flags & AVFMT_GLOBALHEADER) {
-        ctx->ff_stream->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-    }
+    // 打开解码器
     if (avcodec_open2(ctx->ff_stream->codec, pCodec, NULL) < 0) {
         JANUS_LOG(LOG_ERR, "avcodec open fail\n");
         avformat_free_context(ctx->ff_ofmt_ctx);

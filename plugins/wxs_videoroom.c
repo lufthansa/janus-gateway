@@ -6141,12 +6141,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 		session_id, room_id, video_port, audio_port);
 
 #ifdef USE_FFMPEG_API
-    Video_Param tmpvp;
     Audio_Param tmpap = {.channels = 1, .sample_rate = 48000, .input_format = Format_16Bit};
-
-    tmpvp.height = height;
-    tmpvp.width = width;
-
     char uid[64] = {0};
     char url[MAX_PATH_LEN] = {0};
     snprintf(uid, 64, "%lu", user_id);
@@ -6158,7 +6153,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	{
 		snprintf(url, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
 	}
-    rtmp_stream_open(uid, url, &tmpvp, &tmpap);
+    rtmp_stream_open(uid, url, &tmpap);
 #else
 //    return;
 
