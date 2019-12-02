@@ -146,11 +146,6 @@ janus_CFLAGS = \
 
 DEFAULT_LIBS_DIR = /usr/local/lib
 EXT_LIBS = \
-	$(DEFAULT_LIBS_DIR)/libavcodec.so \
-	$(DEFAULT_LIBS_DIR)/libavformat.so \
-	$(DEFAULT_LIBS_DIR)/libavdevice.so \
-	$(DEFAULT_LIBS_DIR)/libavfilter.so \
-	$(DEFAULT_LIBS_DIR)/libavutil.so \
 	$(DEFAULT_LIBS_DIR)/libsrsrtmp.so \
 	$(DEFAULT_LIBS_DIR)/libfaac.so \
 	$(DEFAULT_LIBS_DIR)/libopus.so \
@@ -459,7 +454,7 @@ endif
 
 if ENABLE_PLUGIN_VIDEOROOM
 plugin_LTLIBRARIES += plugins/libjanus_videoroom.la
-plugins_libjanus_videoroom_la_SOURCES = plugins/janus_videoroom.c plugins/rtmp.c
+plugins_libjanus_videoroom_la_SOURCES = plugins/janus_videoroom.c plugins/rtmp.c plugins/rtp2h264.c
 plugins_libjanus_videoroom_la_CFLAGS = $(plugins_cflags) -lhiredis_vip
 plugins_libjanus_videoroom_la_LDFLAGS = $(plugins_ldflags)
 plugins_libjanus_videoroom_la_LIBADD = $(plugins_libadd)
@@ -469,7 +464,7 @@ endif
 
 if ENABLE_PLUGIN_WXSVIDEOROOM
 plugin_LTLIBRARIES += plugins/libwxs_videoroom.la
-plugins_libwxs_videoroom_la_SOURCES = plugins/wxs_videoroom.c plugins/rtmp.c
+plugins_libwxs_videoroom_la_SOURCES = plugins/wxs_videoroom.c plugins/rtmp.c plugins/rtp2h264.c
 plugins_libwxs_videoroom_la_CFLAGS = $(plugins_cflags) -lhiredis_vip
 plugins_libwxs_videoroom_la_LDFLAGS = $(plugins_ldflags)
 plugins_libwxs_videoroom_la_LIBADD = $(plugins_libadd)

@@ -1,7 +1,7 @@
 #include "rtmp.h"
 #include "debug.h"
 #include "../rtp.h"
-#include <libavutil/error.h>
+// #include <libavutil/error.h>
 #include <assert.h>
 
 void print_malloc(char* dest, char* log)
@@ -18,8 +18,6 @@ void print_malloc(char* dest, char* log)
 }
 
 void rtmp_module_init() {
-    // ffmpeg
-    avcodec_register_all();
     // hashtable
     context_table = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)context_destroy);
     if (!context_table) {
@@ -63,53 +61,36 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
     // 找到对应的ctx
     janus_mutex_lock(&context_mutex);
     Stream_Context* ctx = g_hash_table_lookup(context_table, room_id);
-    if (!ctx || !ctx->ff_ofmt_ctx) {
+    if (!ctx) {
         JANUS_LOG(LOG_WARN, "room_id[%s] not exist, stream push error, tablesize=%d\n", room_id, g_hash_table_size(context_table));
         janus_mutex_unlock(&context_mutex);
         return -1;
     }
     janus_rtp_header *rtp_header = (janus_rtp_header *)buf;
     if (av == Media_Video) {
-        int rv = 0;
-        // rtp解包
-        if (!ctx->ff_rtp_demux_ctx) {
-            ctx->ff_rtp_demux_ctx = ff_rtp_parse_open(ctx->ff_ofmt_ctx, ctx->ff_stream, rtp_header->type, 5 * 1024 * 1024);
-            if (!ctx->ff_rtp_demux_ctx) {
-                JANUS_LOG(LOG_ERR, "ctx[%p] video ff_rtp_parse_open fail\n", ctx);
-                janus_mutex_unlock(&context_mutex);
+        if (!ctx->rtp_ctx) {
+            ctx->rtp_ctx = rtp_parse_open(rtp_header->type, 5 * 1024 * 1024);
+            if (!ctx->rtp_ctx) {
+                JANUS_LOG(LOG_ERR, "rtp parse open fail\n");
                 return -1;
             }
-            RTPDynamicProtocolHandler* dpHandler = ff_rtp_handler_find_by_name("H264", AVMEDIA_TYPE_VIDEO);
-            if (!dpHandler) {
-                JANUS_LOG(LOG_ERR, "ctx[%p] ff_rtp_handler_find_by_id h264 fail\n", ctx);
-                janus_mutex_unlock(&context_mutex);
-                return -1;
-            }
-            ff_rtp_parse_set_dynamic_protocol(ctx->ff_rtp_demux_ctx, NULL, dpHandler);
-            // JANUS_LOG(LOG_INFO, "room[%s] video rtp parse prepared\n", room_id);
         }
+        // 解rtp包
+        int rv = 0;
         do {
-            // 解rtp包
-            AVPacket pkt;
-            av_init_packet(&pkt);
-            rv = ff_rtp_parse_packet(ctx->ff_rtp_demux_ctx, &pkt, rv == 1 ? NULL : &buf, len);
-
-            if (ctx->ff_rtp_demux_ctx) {
-                ff_rtp_parse_close(ctx->ff_rtp_demux_ctx);
-                ctx->ff_rtp_demux_ctx = NULL;
-            }
-
-            if (rv == -1 || pkt.size == 0) {
+            Packet* pkt = create_packet();
+            rv = rtp_parse_packet(ctx->rtp_ctx, pkt, rv == 1 ? NULL : &buf, len);
+            if (rv < 0) {
                 JANUS_LOG(LOG_ERR, "room[%s] rtp parse fail\n", room_id);
-                av_packet_unref(&pkt);
+                release_packet(&pkt);
                 break;
             }
 
             // 找到nalu头
-            if (pkt.data[0] == 0x00 && pkt.data[1] == 0x00 && ((pkt.data[2] == 0x00 && pkt.data[3] == 0x01) || pkt.data[2] == 0x01)) {
+            if (pkt->buf[0] == 0x00 && pkt->buf[1] == 0x00 && pkt->buf[2] == 0x00 && pkt->buf[3] == 0x01) {
                 if (ctx->avdata.v_buf && ctx->rtmp) {
                     // 使用srslibrtmp推流，不考虑b帧情况
-                    // JANUS_LOG(LOG_INFO, ("h264 type = %d\n", pkt.data[5] & 0x1f);
+                    // JANUS_LOG(LOG_INFO, ("h264 type = %d\n", pkt->buf[5] & 0x1f);
                     int ret = srs_h264_write_raw_frames(ctx->rtmp, ctx->avdata.v_buf, ctx->avdata.v_len, ctx->avdata.v_pts, ctx->avdata.v_pts);
                     if (ret != 0) {
                         JANUS_LOG(LOG_ERR, "h264 frame push to rtmp server fail: %d\n", ret);
@@ -121,21 +102,22 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
                     ctx->avdata.v_len = 0;
                     ctx->avdata.v_pts = ntohl(rtp_header->timestamp) / 90;
                 }
-                ctx->avdata.v_buf = g_malloc0(pkt.size);
-                memcpy(ctx->avdata.v_buf, pkt.data, pkt.size);
-                ctx->avdata.v_len += pkt.size;
+                ctx->avdata.v_buf = g_malloc0(pkt->size);
+                memcpy(ctx->avdata.v_buf, pkt->buf, pkt->size);
+                ctx->avdata.v_len += pkt->size;
             } else {
                 if (!ctx->avdata.v_buf) {
-                    av_packet_unref(&pkt);
+                    release_packet(&pkt);
                     break;
                 }
                 // 组装完整的nal单元
-                ctx->avdata.v_buf = g_realloc(ctx->avdata.v_buf, ctx->avdata.v_len + pkt.size);
-                memcpy(ctx->avdata.v_buf + ctx->avdata.v_len, pkt.data, pkt.size);
-                ctx->avdata.v_len += pkt.size;
+                ctx->avdata.v_buf = g_realloc(ctx->avdata.v_buf, ctx->avdata.v_len + pkt->size);
+                memcpy(ctx->avdata.v_buf + ctx->avdata.v_len, pkt->buf, pkt->size);
+                ctx->avdata.v_len += pkt->size;
             }
-            av_packet_unref(&pkt);
+            release_packet(&pkt);
         } while(rv == 1);
+
         // JANUS_LOG(LOG_INFO, "rtp h264 seq=%u, pts_raw=%lu, pts_calc=%lu ms\n", 
         //     ntohs(rtp_header->seq_number), ntohl(rtp_header->timestamp), ntohl(rtp_header->timestamp) / 90);
     } else if (av == Media_Audio) {
@@ -237,8 +219,8 @@ Stream_Context* context_create(Audio_Param* ap, char* url) {
         ctx->ap.channels = ap->channels;
         ctx->ap.input_format = ap->input_format;
         ctx->ap.sample_rate = ap->sample_rate;
-        // ffmpeg
-        ret = ffmpeg_decoder_create_(ctx);
+        // rtp
+        ret = rtp_decoder_create_(ctx);
         if (ret < 0) {
             JANUS_LOG(LOG_ERR, "ffmpeg decoder create fail, err=%d\n", ret);
             break;
@@ -270,7 +252,7 @@ Stream_Context* context_create(Audio_Param* ap, char* url) {
         return ctx;
     } while(0);
     // 释放资源
-    ffmpeg_decoder_destroy_(ctx);
+    rtp_decoder_destroy_(ctx);
     opus_decoder_destroy_(ctx);
     resample_destroy_(ctx);
     faac_encoder_destroy_(ctx);
@@ -287,7 +269,7 @@ void context_destroy(Stream_Context* ctx) {
         return;
     }
     // 释放编解码器
-    ffmpeg_decoder_destroy_(ctx);
+    rtp_decoder_destroy_(ctx);
     opus_decoder_destroy_(ctx);
     resample_destroy_(ctx);
     faac_encoder_destroy_(ctx);
@@ -310,67 +292,21 @@ void context_destroy(Stream_Context* ctx) {
     return;
 }
 
-int ffmpeg_decoder_create_(Stream_Context* ctx) {
+int rtp_decoder_create_(Stream_Context* ctx) {
     if (!ctx) {
-        JANUS_LOG(LOG_ERR, "ffmpeg decoder create input error\n");
+        JANUS_LOG(LOG_ERR, "rtp decoder create input error\n");
         return -1;
     }
-    // 创建AVFormatContext
-    int ret = avformat_alloc_output_context2(&ctx->ff_ofmt_ctx, NULL, "flv", "");
-    if (ret < 0) {
-        JANUS_LOG(LOG_ERR, "avformat alloc output context2 fail, err:%s\n", av_err2str(ret));
-        return -1;
-    }
-    // 找到h264解码器
-    AVCodec* pCodec = avcodec_find_decoder(AV_CODEC_ID_H264);
-    if (!pCodec) {
-        JANUS_LOG(LOG_ERR, "avcodec h264 not found\n");
-        avformat_free_context(ctx->ff_ofmt_ctx);
-        return -1;
-    }
-    ctx->ff_stream = avformat_new_stream(ctx->ff_ofmt_ctx, pCodec);
-    if (!ctx->ff_stream) {
-        JANUS_LOG(LOG_ERR, "avformat new stream video fail\n");
-        avformat_free_context(ctx->ff_ofmt_ctx);
-        return -1;
-    }
-    ctx->ff_stream->time_base = (AVRational){1, 1000};
-    ctx->ff_stream->codec->codec_id = pCodec->id;
-    ctx->ff_stream->codec->codec_type = AVMEDIA_TYPE_VIDEO;
-    ctx->ff_stream->codec->pix_fmt = AV_PIX_FMT_YUV420P;
-    // 打开解码器
-    if (avcodec_open2(ctx->ff_stream->codec, pCodec, NULL) < 0) {
-        JANUS_LOG(LOG_ERR, "avcodec open fail\n");
-        avformat_free_context(ctx->ff_ofmt_ctx);
-        return -1;
-    }
-    JANUS_LOG(LOG_INFO, "ffmpeg video avcodec open2 success\n");
+    ctx->rtp_ctx = NULL;
     return 0;
 }
 
-void ffmpeg_decoder_destroy_(Stream_Context* ctx) {
+void rtp_decoder_destroy_(Stream_Context* ctx) {
     if (!ctx) {
         return;
     }
-    // 释放ffmpeg的rtp解码器
-    if (ctx->ff_rtp_demux_ctx) {
-        JANUS_LOG(LOG_INFO, "destroy ctx[%p] ff_rtp_demux_ctx %p\n", ctx, ctx->ff_rtp_demux_ctx);
-        ff_rtp_parse_close(ctx->ff_rtp_demux_ctx);
-        ctx->ff_rtp_demux_ctx = NULL;
-    }
-    // 释放ffmpeg的codec上下文
-    if (ctx->ff_stream && ctx->ff_stream->codec) {
-        JANUS_LOG(LOG_INFO, "destroy ctx[%p] codec %p\n", ctx, ctx->ff_stream->codec);
-        avcodec_close(ctx->ff_stream->codec);
-        ctx->ff_stream->codec = NULL;
-    }
-    // 释放ffmpeg解码器上下文
-    if (ctx->ff_ofmt_ctx) {
-        JANUS_LOG(LOG_INFO, "destroy ctx[%p] ff_ofmt_ctx %p\n", ctx, ctx->ff_ofmt_ctx);
-        avformat_free_context(ctx->ff_ofmt_ctx);
-        ctx->ff_ofmt_ctx = NULL;
-    }
-    return;
+    rtp_parse_close(ctx->rtp_ctx);
+    ctx->rtp_ctx = NULL;
 }
 
 int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap) {

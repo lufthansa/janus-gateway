@@ -2,16 +2,17 @@
 #define JANUS_SRS_RTMP_H
 
 #include <glib.h>
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/error.h>
-#include <libavformat/rtpdec.h>
+// #include <libavformat/avformat.h>
+// #include <libavcodec/avcodec.h>
+// #include <libavutil/error.h>
+// #include <libavformat/rtpdec.h>
 #include <srs_librtmp.h>
 #include <opus/opus.h>
 #include <faac.h>
 #include <faaccfg.h>
 #include <samplerate.h>
 #include "../mutex.h"
+#include "rtp2h264.h"
 	
 
 typedef enum {
@@ -49,9 +50,7 @@ typedef struct AV_Data {
 
 // 推流上下文参数
 typedef struct Stream_Context {
-	AVFormatContext*	ff_ofmt_ctx;		// ffmpeg 上下文句柄
-	AVStream* 			ff_stream;			// ffmpeg 视频流参数
-	RTPDemuxContext*	ff_rtp_demux_ctx;	// ffmpeg rtp上下文句柄
+	RTPDemuxContext*	rtp_ctx;	        // rtpdec上下文句柄
 	OpusDecoder* 		opus_dec;			// opus 解码器句柄
     SRC_STATE*          sample_handle;      // samplerate 重采样句柄
     double              sample_ratio;       // 重采样转换率
@@ -81,9 +80,9 @@ Stream_Context* context_create(Audio_Param* ap, char* url);
 void context_destroy(Stream_Context* ctx);
 
 // 内部函数
-// ffmpeg
-static int ffmpeg_decoder_create_(Stream_Context* ctx);
-static void ffmpeg_decoder_destroy_(Stream_Context* ctx);
+// rtp
+static int rtp_decoder_create_(Stream_Context* ctx);
+static void rtp_decoder_destroy_(Stream_Context* ctx);
 // opus
 static int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap);
 static void opus_decoder_destroy_(Stream_Context* ctx);
