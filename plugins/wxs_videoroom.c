@@ -1282,6 +1282,7 @@ static void *wxs_videoroom_handler(void *data);
 static void wxs_videoroom_relay_rtp_packet(gpointer data, gpointer user_data);
 static void wxs_videoroom_relay_data_packet(gpointer data, gpointer user_data);
 static void wxs_videoroom_hangup_media_internal(janus_plugin_session *handle);
+static char *push_addr = NULL;
 
 typedef enum wxs_videoroom_p_type {
 	wxs_videoroom_p_type_none = 0,
@@ -2108,6 +2109,11 @@ int wxs_videoroom_init(janus_callbacks *callback, const char *config_path) {
 		janus_config_item *key = janus_config_get(config, config_general, janus_config_type_item, "admin_key");
 		if(key != NULL && key->value != NULL)
 			admin_key = g_strdup(key->value);
+
+        janus_config_item *addr = janus_config_get(config, config_general, janus_config_type_item, "push_addr");
+		if(addr != NULL && addr->value != NULL)
+			push_addr = g_strdup(addr->value);
+        
 		janus_config_item *lrf = janus_config_get(config, config_general, janus_config_type_item, "lock_rtp_forward");
 		if(admin_key && lrf != NULL && lrf->value != NULL)
 			lock_rtpfwd = janus_is_true(lrf->value);
@@ -6149,7 +6155,11 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 	{
 		snprintf(url, MAX_PATH_LEN, "%s", rtmp_server);
 	}
-	else
+	else if(push_addr != NULL)
+	{
+		snprintf(url, MAX_PATH_LEN, "%s/%s", push_addr, room_id);
+    }
+    else
 	{
 		snprintf(url, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
 	}
@@ -6190,6 +6200,10 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 		{
 			snprintf(ffmpegcmd, MAX_PATH_LEN, "%s", rtmp_server);
 		}
+       	else if(push_addr != NULL)
+    	{
+    		snprintf(url, MAX_PATH_LEN, "%s/%s", push_addr, room_id);
+        }
 		else 
 		{
 			snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);

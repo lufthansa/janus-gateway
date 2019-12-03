@@ -1157,7 +1157,7 @@ int janus_http_admin_client_connect(void *cls, const struct sockaddr *addr, sock
 /* WebServer requests handler */
 int janus_http_handler(void *cls, struct MHD_Connection *connection, const char *url, const char *method, const char *version, const char *upload_data, size_t *upload_data_size, void **ptr)
 {
-    JANUS_LOG(LOG_INFO, "----------------- in janus_http_handler\n");
+    JANUS_LOG(LOG_VERB, "----------------- in janus_http_handler\n");
 	char *payload = NULL;
 	json_t *root = NULL;
 	struct MHD_Response *response = NULL;
@@ -1379,7 +1379,7 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			json_object_set_new(root, "token", json_string(token));
         
 		gateway->incoming_request(&janus_http_transport, ts, (void *)keepalive_id, FALSE, root, NULL);
-        JANUS_LOG(LOG_WARN, "*************** after incoming_request 11\n");
+        JANUS_LOG(LOG_VERB, "*************** after incoming_request 11\n");
         
 		/* Ok, go on */
 		if(handle_path) {
@@ -1448,17 +1448,17 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 			}
 		} else {
 			/* Still no message, wait */
-            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler before janus_http_notifier\n");
+            JANUS_LOG(LOG_VERB, "*************** in janus_http_handler before janus_http_notifier\n");
 			ret = janus_http_notifier(ts, session, max_events);
-            JANUS_LOG(LOG_WARN, "*************** in janus_http_handler after janus_http_notifier\n");
+            JANUS_LOG(LOG_VERB, "*************** in janus_http_handler after janus_http_notifier\n");
 		}
 		janus_refcount_decrease(&session->ref);
 		janus_refcount_decrease(&ts->ref);
-        JANUS_LOG(LOG_WARN, "*************** in janus_http_handler goto done 333\n");
+        JANUS_LOG(LOG_VERB, "*************** in janus_http_handler goto done 333\n");
 		goto done;
 	}
 
-    JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 44444\n");
+    JANUS_LOG(LOG_VERB, "*************** in janus_http_handler 44444\n");
 	json_error_t error;
 	/* Parse the JSON payload */
 	root = json_loads(payload, 0, &error);
@@ -1472,7 +1472,7 @@ int janus_http_handler(void *cls, struct MHD_Connection *connection, const char 
 		goto done;
 	}
     
-JANUS_LOG(LOG_WARN, "*************** in janus_http_handler 55555\n");
+JANUS_LOG(LOG_VERB, "*************** in janus_http_handler 55555\n");
 
 parsingdone:
 	/* Check if we have session and handle identifiers, and how they were provided */

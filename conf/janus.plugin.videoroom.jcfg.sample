@@ -44,6 +44,7 @@ general: {
 									# enforced for RTP forwarding requests too
 	#events = false					# Whether events should be sent to event
 									# handlers (default=true)
+	push_addr = "rtmp://wxs.cisco.com:1935/hls"
 }
 
 room-1234: {
