@@ -85,12 +85,11 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
                 release_packet(&pkt);
                 break;
             }
-
             // 找到nalu头
             if (pkt->buf[0] == 0x00 && pkt->buf[1] == 0x00 && pkt->buf[2] == 0x00 && pkt->buf[3] == 0x01) {
                 if (ctx->avdata.v_buf && ctx->rtmp) {
                     // 使用srslibrtmp推流，不考虑b帧情况
-                    // JANUS_LOG(LOG_INFO, ("h264 type = %d\n", pkt->buf[5] & 0x1f);
+                    // JANUS_LOG(LOG_INFO, "h264 type = %d\n", pkt->buf[5] & 0x1f);
                     int ret = srs_h264_write_raw_frames(ctx->rtmp, ctx->avdata.v_buf, ctx->avdata.v_len, ctx->avdata.v_pts, ctx->avdata.v_pts);
                     if (ret != 0) {
                         JANUS_LOG(LOG_ERR, "h264 frame push to rtmp server fail: %d\n", ret);
@@ -100,11 +99,11 @@ int rtmp_stream_push(char* room_id, char* buf, int len, Media_Type av) {
                     g_free(ctx->avdata.v_buf);
                     ctx->avdata.v_buf = NULL;
                     ctx->avdata.v_len = 0;
-                    ctx->avdata.v_pts = ntohl(rtp_header->timestamp) / 90;
                 }
                 ctx->avdata.v_buf = g_malloc0(pkt->size);
                 memcpy(ctx->avdata.v_buf, pkt->buf, pkt->size);
                 ctx->avdata.v_len += pkt->size;
+                ctx->avdata.v_pts = ntohl(rtp_header->timestamp) / 90;
             } else {
                 if (!ctx->avdata.v_buf) {
                     release_packet(&pkt);
@@ -302,11 +301,10 @@ int rtp_decoder_create_(Stream_Context* ctx) {
 }
 
 void rtp_decoder_destroy_(Stream_Context* ctx) {
-    if (!ctx) {
-        return;
+    if (ctx && ctx->rtp_ctx) {
+        rtp_parse_close(ctx->rtp_ctx);
+        ctx->rtp_ctx = NULL;
     }
-    rtp_parse_close(ctx->rtp_ctx);
-    ctx->rtp_ctx = NULL;
 }
 
 int opus_decoder_create_(Stream_Context* ctx, Audio_Param* ap) {
