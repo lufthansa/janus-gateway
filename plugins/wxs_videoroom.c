@@ -6205,7 +6205,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 		}
 		else if(push_addr != NULL)
     	{
-    		snprintf(url, MAX_PATH_LEN, "%s/%s", push_addr, room_id);
+    		snprintf(ffmpegcmd, MAX_PATH_LEN, "%s/%s", push_addr, room_id);
         }
         else
 		{
