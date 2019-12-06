@@ -30,7 +30,7 @@ void rtmp_module_init() {
 }
 
 int rtmp_stream_open(char* room_id, char* url, Audio_Param* ap, Video_Param* vp) {
-    JANUS_LOG(LOG_INFO, "rtmp open, roomid[%s], url[%s]\n", room_id, url);
+    JANUS_LOG(LOG_INFO, "new rtmp open, roomid[%s], url[%s]\n", room_id, url);
     janus_mutex_lock(&context_mutex);  
     Stream_Context* ctx = context_create(ap, vp, url);
     if (!ctx) {
