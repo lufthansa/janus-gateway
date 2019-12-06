@@ -1560,7 +1560,7 @@ typedef struct wxs_videoroom_rtp_relay_packet {
 
 
 // wilche start wbx
-#define USE_FFMPEG_API
+#define USE_FFMPEG_APIx
 static GHashTable *ffmpegps;
 static GHashTable *publisher_info;  // <roomid, GHashTable<janus_session_id, wbx_publisher_info>>
 
