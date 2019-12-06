@@ -2111,8 +2111,8 @@ int wxs_videoroom_init(janus_callbacks *callback, const char *config_path) {
 			admin_key = g_strdup(key->value);
 
         janus_config_item *addr = janus_config_get(config, config_general, janus_config_type_item, "push_addr");
-		if(addr != NULL && addr->value != NULL)
-			push_addr = g_strdup(addr->value);
+        if(addr != NULL && addr->value != NULL)
+            push_addr = g_strdup(addr->value);
         
 		janus_config_item *lrf = janus_config_get(config, config_general, janus_config_type_item, "lock_rtp_forward");
 		if(admin_key && lrf != NULL && lrf->value != NULL)
@@ -6148,6 +6148,7 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 
 #ifdef USE_FFMPEG_API
     Audio_Param tmpap = {.channels = 1, .sample_rate = 48000, .input_format = Format_16Bit};
+    Video_Param tmpvp = {.width = width, .height = height};
     char uid[64] = {0};
     char url[MAX_PATH_LEN] = {0};
     snprintf(uid, 64, "%lu", user_id);
@@ -6162,8 +6163,10 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
     else
 	{
 		snprintf(url, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
+        // snprintf(url, MAX_PATH_LEN, "rtmp://10.140.212.243:1935/home/%s", room_id);
+        // strcpy(url, "rtmp://a.rtmp.youtube.com/live2/wka0-8uzr-z1qb-brtg");
 	}
-    rtmp_stream_open(uid, url, &tmpap);
+    rtmp_stream_open(uid, url, &tmpap, &tmpvp);
 #else
 //    return;
 
@@ -6200,11 +6203,11 @@ static void wbx_start_ffmpeg(guint64 session_id, const char* room_id, guint64 us
 		{
 			snprintf(ffmpegcmd, MAX_PATH_LEN, "%s", rtmp_server);
 		}
-       	else if(push_addr != NULL)
+		else if(push_addr != NULL)
     	{
     		snprintf(url, MAX_PATH_LEN, "%s/%s", push_addr, room_id);
         }
-		else 
+        else
 		{
 			snprintf(ffmpegcmd, MAX_PATH_LEN, "rtmp://wxs.cisco.com:1935/hls/%s", room_id);
 		}

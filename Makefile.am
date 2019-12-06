@@ -146,7 +146,9 @@ janus_CFLAGS = \
 
 DEFAULT_LIBS_DIR = /usr/local/lib
 EXT_LIBS = \
-	$(DEFAULT_LIBS_DIR)/libsrsrtmp.so \
+    $(DEFAULT_LIBS_DIR)/libavformat.so \
+    $(DEFAULT_LIBS_DIR)/libavcodec.so \
+    $(DEFAULT_LIBS_DIR)/libavutil.so \
 	$(DEFAULT_LIBS_DIR)/libfaac.so \
 	$(DEFAULT_LIBS_DIR)/libopus.so \
 	$(DEFAULT_LIBS_DIR)/libsamplerate.so

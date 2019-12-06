@@ -2,25 +2,23 @@
 #define JANUS_SRS_RTMP_H
 
 #include <glib.h>
-// #include <libavformat/avformat.h>
-// #include <libavcodec/avcodec.h>
-// #include <libavutil/error.h>
-// #include <libavformat/rtpdec.h>
-#include <srs_librtmp.h>
 #include <opus/opus.h>
 #include <faac.h>
 #include <faaccfg.h>
 #include <samplerate.h>
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/error.h>
 #include "../mutex.h"
 #include "rtp2h264.h"
-	
+
 
 typedef enum {
     Media_Audio = 0,
     Media_Video
 } Media_Type;
 
-// 音频采样精度枚举
+// Audio sample deep
 typedef enum {
     Format_16Bit = 1,
     Format_24Bit = 2,
@@ -28,58 +26,60 @@ typedef enum {
     Format_Float = 4
 } AudioInputFormat;
 
-// 音频参数定义
+typedef struct Video_Param {
+    int width;
+    int height;
+} Video_Param;
+
 typedef struct Audio_Param {
     int channels;
     int sample_rate;
     AudioInputFormat input_format;
 } Audio_Param;
 
-// 用于组装音视频完整帧
+// Video and Audio temprate data
 typedef struct AV_Data {
-    uint8_t*	v_buf;					// 视频h264帧buf
-    int 		v_len;					// 视频h264帧有效长度
-    uint32_t 	v_pts;					// 视频h264帧时间戳
-    uint8_t* 	a_buf;					// 音频pcm数据buf
-    int 		a_begin;     			// 音频pcm有效数据起始位置
-    int 		a_end;       			// 音频pcm有效数据结束位置
-    uint32_t    a_pts;                  // 音频帧时间戳
-	ulong 		a_input_samples;		// pcm解码样本数，一个采样深度(16bit)算一个样本
-	ulong 		a_max_output_bytes;		// aac编码后缓存最大长度    
+    uint8_t*	v_buf;					// h264 frame buf, parsed from rtp
+    int 		v_len;					// one h264 frame length
+    uint32_t 	v_pts;					// video frame's timestamp
+    uint8_t*   	a_buf;					// audio pcm format buf
+    int 		a_begin;     			// audio pcm buf begin pos
+    int 		a_end;       			// audio pcm buf end pos
+    uint32_t    a_pts;                  // audio frame' timestamp
+	ulong 		a_input_samples;		// audio sample format
+	ulong 		a_max_output_bytes;		// aac buf's max length    
 } AV_Data;
 
-// 推流上下文参数
+// Context of stream
 typedef struct Stream_Context {
-	RTPDemuxContext*	rtp_ctx;	        // rtpdec上下文句柄
-	OpusDecoder* 		opus_dec;			// opus 解码器句柄
-    SRC_STATE*          sample_handle;      // samplerate 重采样句柄
-    double              sample_ratio;       // 重采样转换率
-	faacEncHandle 		aac_enc;			// aac 编码器句柄
-	srs_rtmp_t			rtmp;				// srs-librtmp 推流句柄
-	AV_Data				avdata;				// 音视频缓存
-    Audio_Param         ap;                 // 源pcm音频参数     
+	RTPDemuxContext*	rtp_ctx;	        // rtp decoder handle
+	OpusDecoder* 		opus_dec;			// opus decoder handle
+    SRC_STATE*          sample_handle;      // samplerate handle
+    double              sample_ratio;       // resample ratio
+	faacEncHandle 		aac_enc;			// aac encoder handle
+    AVFormatContext*	ff_ofmt_ctx;        // ffmpeg rtmp client
+	AV_Data				avdata;				// video & audio cache
+    Audio_Param         ap;                 // audio params
 } Stream_Context;
 
-// 保存不同roomid的参数
+// Save different Stream_Context by room_id
 static GHashTable* context_table = NULL;
 static janus_mutex context_mutex = JANUS_MUTEX_INITIALIZER;
 
-// 对外接口函数
-// 模块初始化
+// External interfaces
+// Module init
 void rtmp_module_init(void);
-// 准备推流
-int rtmp_stream_open(char* room_id, char* url, Audio_Param* ap);
-// 结束推流
+// open stream
+int rtmp_stream_open(char* room_id, char* url, Audio_Param* ap, Video_Param* vp);
+// close stream
 void rtmp_stream_close(char* room_id);
-// 推流
+// push stream
 int rtmp_stream_push(char* room_id, char *buf, int len, Media_Type av);
 
-// stream_context创建函数
-Stream_Context* context_create(Audio_Param* ap, char* url);
-// stream_context销毁函数
+Stream_Context* context_create(Audio_Param* ap, Video_Param* vp, char* url);
 void context_destroy(Stream_Context* ctx);
 
-// 内部函数
+// Internal interfaces
 // rtp
 static int rtp_decoder_create_(Stream_Context* ctx);
 static void rtp_decoder_destroy_(Stream_Context* ctx);
@@ -92,7 +92,7 @@ static void resample_destroy_(Stream_Context* ctx);
 // faac
 static int faac_encoder_create_(Stream_Context* ctx, Audio_Param* ap);
 static void faac_encoder_destroy_(Stream_Context* ctx);
-// srs-rtmp
-static int srs_rtmp_create_(Stream_Context* ctx, char* url);
-static void srs_rtmp_destroy_(Stream_Context* ctx);
+// ffmpeg-rtmp
+static int rtmp_create_(Stream_Context* ctx, Video_Param* vp, char* url);
+static void rtmp_destroy_(Stream_Context* ctx);
 #endif
